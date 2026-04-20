@@ -16,7 +16,7 @@ Paper03.md — 2026-04-21 생성
 ## 차례
 
 1 서론 — 1.1 배경 / 1.2 목적 / 1.3 구성
-2 관련 연구 — 2.1 3DGS / 2.2 생성형 모델링 / 2.3 LLM 공간 추론 / 2.4 게임 엔진 통합 / 2.5 공백
+2 관련 연구 — 2.1 3DGS / 2.2 생성형 모델링 / 2.3 LLM 공간 추론 / 2.4 게임 엔진 통합 / 2.5 월드 모델 / 2.6 공백
 3 파이프라인 설계 — 3.1 구조 / 3.2 공간 뼈대 / 3.3 에셋 생성 / 3.4 배치·검증 / 3.5 로직 연동
 4 실험 — 4.1 환경 / 4.2 결과 / 4.3 정성 / 4.4 정량 / 4.5 절제
 5 결론 — 5.1 요약 / 5.2 전망
@@ -37,11 +37,17 @@ Keywords: 3DGS, LLM, furniture layout automation, Unity, hybrid authoring
 
 ### 1.1. 연구의 배경
 
-Unity나 Unreal 같은 게임 엔진에서 방 하나를 꾸미는 작업은 겉보기보다 손이 많이 간다. 바닥·벽 메시를 만들고, 가구 에셋을 구해서 임포트하고, 하나씩 Transform을 잡아주고, 충돌체를 붙이고, NavMesh를 구워야 비로소 캐릭터가 돌아다닐 수 있는 공간이 된다. 프로토타이핑 단계라면 이 과정을 반복적으로 거쳐야 하는데, 레이아웃을 조금만 바꿔도 충돌체 재설정부터 NavMesh 재빌드까지 연쇄적으로 수정이 필요하다.
+인공지능의 관심사가 텍스트·이미지·영상을 넘어 **공간**으로 이동하고 있다. GPT-4(OpenAI, 2023)와 Claude(Anthropic, 2024)로 대표되는 거대 언어 모델(LLM)은 자연어와 코드를 넘어 3차원 공간 관계에 대한 초보적 추론까지 시도할 수 있게 되었고(Feng et al., 2023; Yang et al., 2024), 2D 확산 모델을 3D 표현으로 증류하는 방법(Poole et al., 2023; Tang et al., 2024)을 통해 한 장의 문장으로부터 일관된 3차원 장면을 합성하는 단계에 이르렀다. 생성형 AI가 다루는 표현의 차원이 한 축씩 늘어나는 흐름으로 볼 수 있다.
 
-한편 생성형 AI 쪽에서는 두 갈래의 발전이 눈에 띈다. 하나는 3D Gaussian Splatting(3DGS)인데, Kerbl et al.(2023)이 제안한 이후 NeRF를 빠르게 대체하며 novel view synthesis의 사실상 표준이 되었다. 학습 시간이 NeRF의 48시간에서 40분대로 줄고 렌더링이 100fps 이상 나온다는 점은 이미 널리 알려져 있고(Chen & Wang, 2024), DreamGaussian(Tang et al., 2024) 같은 후속 연구는 텍스트만으로 3DGS 에셋을 생성하는 단계까지 와 있다. 다른 하나는 GPT-4(OpenAI, 2023), Claude(Anthropic, 2024) 등 LLM의 공간 추론 능력이다. "침대 옆에 협탁을 놓아라" 같은 지시를 좌표로 변환하는 것이 원리적으로 가능하다는 점은 LayoutGPT(Feng et al., 2023)나 Holodeck(Yang et al., 2024) 등의 선행 연구가 보여주었다.
+이 흐름의 최근 국면은 **월드 모델(world model)** 이라는 이름 아래 한 단계 더 진행되고 있다. NVIDIA가 공개한 Cosmos 계열과 Lyra(NVIDIA, 2025; 2026), DeepMind의 Genie 2(DeepMind, 2025), World Labs가 선보인 Marble(Li et al., 2024) 등은 단발성 이미지나 에셋이 아니라 **상호작용 가능한 세계 자체**를 모델이 학습·생성하려는 시도다. Fei-Fei Li는 이를 언어 지능 다음 단계의 **공간 지능(spatial intelligence)** 이라 부르며 이 방향의 중요성을 강조하였고, 2024-2026년의 짧은 기간 사이에 관련 시스템은 학계와 산업계 모두에서 급속도로 성숙하고 있다.
 
-문제는 이 기술들이 따로 놀고 있다는 점이다. 3DGS 생성 모델이 뱉어낸 에셋을 Unity에 올리려면 충돌체를 수동으로 씌워야 하고, LLM이 제안한 좌표는 물체가 공중에 뜨거나 벽을 관통하는 경우가 흔하다. 두 기술을 엮어 하나의 파이프라인으로 만드는 시도가 눈에 띄지 않는 상황이며, 바로 그 지점에서 본 연구가 출발한다.
+다만 이들 월드 모델은 대체로 **장면의 생성**에 무게가 실린다. 즉 "공간을 어떻게 만들어 낼 것인가"에 답하는 데 초점이 있으며, 그렇게 만들어진 공간이 **기존 게임 엔진의 물리·논리 체계 안에서 어떻게 실제로 기능하도록 만들 것인가**는 상대적으로 덜 다뤄진 질문이다. 본 연구는 이 후자의 층위를 향한다. 생성형 3DGS가 제공하는 시각적으로 설득력 있는 에셋과 LLM이 내놓는 의미론적 배치 지시를 **Unity 물리 엔진의 검증 루프 안에서 결합**하여, 생성된 세계가 캐릭터의 이동·충돌·게임 이벤트에 반응하는 실체로 전환되도록 하는 것이 본 연구의 목표다.
+
+거시적 배경을 이렇게 놓고 보면 실무의 문제가 새삼 또렷해진다. Unity나 Unreal 같은 게임 엔진에서 방 하나를 꾸미는 작업은 겉보기보다 손이 많이 간다. 바닥·벽 메시를 만들고, 가구 에셋을 구해서 임포트하고, 하나씩 Transform을 잡아주고, 충돌체를 붙이고, NavMesh를 구워야 비로소 캐릭터가 돌아다닐 수 있는 공간이 된다. 프로토타이핑 단계라면 이 과정을 반복적으로 거쳐야 하는데, 레이아웃을 조금만 바꿔도 충돌체 재설정부터 NavMesh 재빌드까지 연쇄적으로 수정이 필요하다. 월드 모델이 약속하는 "자연어로 공간을 얻는" 미래와 현재 현장에서 손으로 공간을 짓는 관행 사이에는, 두 세계를 이어줄 **중간 파이프라인**이 빠져 있다.
+
+한편 현재 시점의 기술 토대를 가까이서 보면, 생성형 AI 쪽에서 두 갈래의 발전이 눈에 띈다. 하나는 3D Gaussian Splatting(3DGS)인데, Kerbl et al.(2023)이 제안한 이후 NeRF를 빠르게 대체하며 novel view synthesis의 사실상 표준이 되었다. 학습 시간이 NeRF의 48시간에서 40분대로 줄고 렌더링이 100fps 이상 나온다는 점은 이미 널리 알려져 있고(Chen & Wang, 2024), DreamGaussian(Tang et al., 2024) 같은 후속 연구는 텍스트만으로 3DGS 에셋을 생성하는 단계까지 와 있다. 다른 하나는 앞서 언급한 LLM의 공간 추론 능력이다. "침대 옆에 협탁을 놓아라" 같은 지시를 좌표로 변환하는 것이 원리적으로 가능하다는 점은 LayoutGPT(Feng et al., 2023)나 Holodeck(Yang et al., 2024) 등의 선행 연구가 보여주었다.
+
+문제는 이 기술들이 따로 놀고 있다는 점이다. 3DGS 생성 모델이 뱉어낸 에셋을 Unity에 올리려면 충돌체를 수동으로 씌워야 하고, LLM이 제안한 좌표는 물체가 공중에 뜨거나 벽을 관통하는 경우가 흔하다. 두 기술을 엮어 하나의 파이프라인으로 만드는 시도가 눈에 띄지 않는 상황이며, 월드 모델의 대형 담론과 게임 엔진의 실제 현장 사이에 놓인 이 간극에서 본 연구가 출발한다.
 
 ### 1.2. 연구 목적과 기여
 
@@ -51,7 +57,7 @@ Unity나 Unreal 같은 게임 엔진에서 방 하나를 꾸미는 작업은 겉
 
 ### 1.3. 논문 구성
 
-2장은 3DGS, 생성형 모델링, LLM 공간 추론, 게임 엔진 통합 순으로 관련 연구를 짚는다. 3장에서 제안 파이프라인의 설계를, 4장에서 실험 결과를, 5장에서 한계와 전망을 다룬다.
+2장은 3DGS, 생성형 모델링, LLM 공간 추론, 게임 엔진 통합, 월드 모델 순으로 관련 연구를 짚는다. 3장에서 제안 파이프라인의 설계를, 4장에서 실험 결과를, 5장에서 한계와 전망을 다룬다.
 
 ## 2. 관련 연구
 
@@ -79,7 +85,19 @@ AI가 만든 3D 콘텐츠를 게임 엔진 안에서 실제로 돌리는 연구�
 
 3DGS의 Unity 통합에서는 UnityGaussianSplatting(Aras-p, 2023)이 사실상 유일한 실용적 프레임워크다. D3D12, Metal, Vulkan을 지원하고 Quest 3 같은 VR 기기에서도 동작한다. 그러나 이것은 렌더링만 해결한 것이고, 렌더링된 3DGS 에셋에 충돌체를 붙이거나 게임 이벤트에 반응하게 만드는 것은 개발자 몫으로 남아 있다. LLM과 게임 엔진의 결합은 NPC 대화 생성(Park et al., 2023) 쪽에 집중되어 왔고, 공간 레이아웃 목적의 통합은 Holodeck(Yang et al., 2024) 정도가 있으나 Habitat 기반이라 Unity·Unreal의 물리 시스템과는 거리가 있다.
 
-### 2.5. 선행 연구의 공백
+### 2.5. 월드 모델
+
+공간을 생성·시뮬레이션하는 기반 모델(foundation model)에 대한 관심은 2024년 말부터 급격히 되살아났다. 개념적 원류는 Ha와 Schmidhuber(2018)의 *World Models*로, 환경의 시공간 표현을 비지도 방식으로 압축해 에이전트가 학습된 내부 시뮬레이션 안에서 훈련할 수 있음을 보였다. 이후 한동안 강화학습 보조 장치로 머물러 있던 이 개념은, LLM의 의미·공간 추론 능력과 생성형 3D 기법의 급성장이 만나며 "세계를 통째로 만들어내는 모델"이라는 형태로 재부상하였다. Kong et al.(2025)은 3D·4D 월드 모델에 한정한 최초의 체계적 서베이를 통해 이 흐름을 비디오 기반, 3D 장면 기반, 상호작용형, 물리 AI 기반의 네 범주로 정리한다.
+
+대표 시스템은 지향점이 서로 다르다. 본 연구와 가장 직접적으로 겹치는 것은 NVIDIA의 Lyra 계열이다. Lyra 1.0(Wang et al., 2025)은 비디오 확산 모델에 잠재된 3D 지식을 self-distillation으로 뽑아 3DGS 표현으로 고정했고, Lyra 2.0(NVIDIA, 2026)은 단일 이미지와 카메라 궤적으로부터 워크스루 비디오를 합성한 뒤 이를 3DGS와 표면 메시로 재구성해 실시간 렌더러와 물리 시뮬레이터에 바로 로드할 수 있게 한다. 같은 회사의 Cosmos(Agrawal et al., 2025)는 로보틱스·자율주행을 위한 월드 파운데이션 모델 플랫폼으로, LLM에 준하는 규모(약 9천조 토큰, 2천만 시간의 실세계 비디오)로 훈련되어 물리 AI의 데이터 병목을 겨냥한다.
+
+상호작용 축에서는 DeepMind의 Genie 계열이 대표적이다. Genie 2(DeepMind, 2024)는 단일 프롬프트 이미지에서 키보드·마우스로 조작 가능한 3D 월드를 생성하였고, Genie 3(DeepMind, 2025)는 하드코딩된 물리 엔진 없이 autoregressive 학습만으로 720p·24fps 수준의 실시간 인터랙티브 환경을 수 분간 일관되게 유지한다. World Labs의 Marble(World Labs, 2025)은 "공간 지능(spatial intelligence)"을 프론티어로 내세우며 최초의 상용 generative world model을 표방하고, 텍스트·이미지·파노라마·3D 레이아웃 입력으로부터 편집·다운로드 가능한 지속적 3D 환경을 출력한다. 중국 측에서는 Tencent의 Hunyuan World 계열이 있다. HunyuanWorld 1.0(Tencent, 2025)은 오픈소스 simulation-capable 3D 월드 생성 모델로서 3DGS를 메시의 대안 표현으로 공식 지원했고, HY-World 2.0(Tencent, 2026)은 멀티모달 입력에서 고해상도 탐험형 3D 월드를 출력한다. 비디오·잠재 공간 계열로는 OpenAI Sora(OpenAI, 2024)의 "video as world simulator" 관점, Meta V-JEPA 2(Assran et al., 2025)의 self-supervised 잠재 예측, Decart Oasis(Decart, 2024)의 실시간 AI Minecraft 클론 등이 인접 계열로 꼽힌다.
+
+이 흐름과 본 연구의 관계는 대립이라기보다 계층적 보완에 가깝다. 현재 월드 모델 연구의 초점은 대부분 "장면 자체를 만들어내는" 단계에 맞춰져 있다. 모델이 내놓는 산출물은 3DGS·메시·비디오 중 어느 형태든, 여전히 자족적인 장면 표현이며 게임 엔진의 물리·이벤트·내비게이션 시스템과는 별도 층위에 있다. Lyra 2.0이 "실시간 엔진에 로드 가능"이라고 명시하지만, 로드된 이후 각 가우시안 객체에 충돌체가 붙고 LLM이 의미론적으로 재배치하며 물리 검증을 거치는 과정은 별도의 공학적 작업으로 남는다.
+
+본 연구 Unity-SplatForge는 바로 그 다음 층위—생성된 3D 표현을 게임 엔진 안에서 실체화(embodiment)하고, 객체 단위로 의미론적 배치를 부여하며, 물리 상호작용과 엮어주는 층위—를 다룬다. 즉 월드 모델을 "방을 통째로 한 번에 만드는" 상위 생성 계층으로 보면, 본 연구는 그 출력 혹은 그와 등가의 3DGS 에셋을 받아 개별 객체로 분해·재배치하고 편집·검증 가능한 상태로 유지하는 하위 실체화 계층이다. 월드 모델이 엔드투엔드 모놀리식 접근이라면, 본 연구는 LLM 에이전트와 3DGS 에셋, 게임 엔진 물리 시스템을 느슨하게 결합하는 조합적 접근이다. 두 계층은 경쟁 관계가 아니라, 향후 월드 모델의 산출물을 본 파이프라인의 에셋 공급원으로 편입하거나 본 시스템의 scene graph를 월드 모델의 조건 신호로 역이용하는 식으로 연결될 수 있는 자연스러운 다운스트림 관계에 놓여 있다.
+
+### 2.6. 선행 연구의 공백
 
 정리하면, 기존 연구에는 세 군데 빈 곳이 보인다.
 
@@ -252,3 +270,16 @@ LLM의 공간 추론은 직사각형 방에서는 무난했으나, L자형 방�
 [16] Xie, T. et al., "PhysGaussian: Physics-integrated 3D Gaussians for generative dynamics," in Proc. CVPR, 2024.
 [17] Wei, L. et al., "No redundancy, no stall: Lightweight streaming 3DGS for real-time rendering," in Proc. ICCAD, 2025. arXiv:2507.21572.
 [18] Chen, Y. et al., "GaussianEditor: Swift and controllable 3D editing with Gaussian splatting," in Proc. CVPR, pp. 21476-21485, 2024.
+[19] Ha, D. and Schmidhuber, J., "World models," arXiv:1803.10122, 2018.
+[20] Kong, L. et al., "3D and 4D world modeling: A survey," arXiv:2509.07996, 2025.
+[21] Wang, Z. et al., "Lyra: Generative 3D scene reconstruction via video diffusion model self-distillation," arXiv:2509.19296, 2025.
+[22] NVIDIA Research, "Lyra 2.0: Explorable generative 3D worlds," arXiv:2604.13036, 2026.
+[23] Agrawal, N. et al., "Cosmos world foundation model platform for physical AI," arXiv:2501.03575, 2025.
+[24] DeepMind, "Genie 2: A large-scale foundation world model," DeepMind Blog, Dec. 2024. [Online]. Available: https://deepmind.google/blog/genie-2-a-large-scale-foundation-world-model/
+[25] DeepMind, "Genie 3: A new frontier for world models," DeepMind Blog, Aug. 2025. [Online]. Available: https://deepmind.google/blog/genie-3-a-new-frontier-for-world-models/
+[26] World Labs, "Marble: A multimodal world model," World Labs Blog, Nov. 2025. [Online]. Available: https://www.worldlabs.ai/blog/marble-world-model
+[27] Tencent, "HunyuanWorld 1.0: Generating immersive, explorable, and interactive 3D worlds from words or pixels," arXiv:2507.21809, 2025.
+[28] Tencent, "HY-World 2.0," GitHub repository, 2026. [Online]. Available: https://github.com/Tencent-Hunyuan/HY-World-2.0
+[29] OpenAI, "Video generation models as world simulators," OpenAI Research, 2024. [Online]. Available: https://openai.com/index/video-generation-models-as-world-simulators/
+[30] Assran, M. et al., "V-JEPA 2: Self-supervised video models enable understanding, prediction and planning," arXiv:2506.09985, 2025.
+[31] Decart and Etched, "Oasis: A universe in a transformer," 2024. [Online]. Available: https://oasis-model.github.io/
