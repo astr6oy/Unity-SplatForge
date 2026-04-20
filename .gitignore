@@ -97,3 +97,17 @@ InitTestScene*.unity*
 
 # Auto-generated scenes by play mode tests
 /[Aa]ssets/[Ii]nit[Tt]est[Ss]cene*.unity*
+
+# Python server
+PythonServer/.env
+**/__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# 에이전트 설정(호스트별)
+.claude/settings.local.json
+
+# 3DGS 대용량 샘플 에셋 (GitHub 100MB 근접, local-only)
+SplatForge-UnityClient/Assets/Samples/Bart/
+SplatForge-UnityClient/Assets/Samples/Statue/

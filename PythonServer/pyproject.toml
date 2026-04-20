@@ -1,0 +1,40 @@
+[tool.poetry]
+name = "splatforge-server"
+version = "0.1.0"
+description = "SplatForge Python Server - LLM-based 3D scene composition for Unity"
+authors = ["SplatForge Team"]
+readme = "README.md"
+packages = [{include = "splatforge_server", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.109.0"
+uvicorn = {extras = ["standard"], version = "^0.27.0"}
+pydantic = "^2.5.0"
+pydantic-settings = "^2.1.0"
+httpx = "^0.26.0"
+openai = "^1.10.0"
+anthropic = "^0.18.0"
+numpy = "^1.26.0"
+python-dotenv = "^1.0.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0.0"
+pytest-asyncio = "^0.23.0"
+black = "^24.1.0"
+ruff = "^0.2.0"
+
+[tool.poetry.scripts]
+serve = "splatforge_server.main:run"
+
+[tool.black]
+line-length = 100
+target-version = ['py311']
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "I", "W"]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

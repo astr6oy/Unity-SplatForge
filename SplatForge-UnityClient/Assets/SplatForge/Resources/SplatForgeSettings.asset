@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 02c0124ad73f942878745efec742c2e8, type: 3}
+  m_Name: SplatForgeSettings
+  m_EditorClassIdentifier: SplatForge.Runtime::SplatForge.Core.SplatForgeSettings
+  _serverEndpoint: http://localhost:8080
+  _useMockServer: 1
+  _autoConnectOnStart: 0
+  _mockMinConnectionDelay: 0.3
+  _mockMaxConnectionDelay: 0.8
+  _mockFailureRate: 0
+  _defaultMinSpacing: 0.5
+  _defaultGroundObjects: 1
+  _defaultAvoidOverlap: 1

@@ -1,0 +1,132 @@
+{
+  "version": "1.0",
+  "description": "SplatForge asset catalog",
+  "assets": {
+    "bed": {
+      "asset_id": "bed_001",
+      "asset_path": "furniture/bed_01",
+      "display_name": "Double Bed",
+      "category": "furniture",
+      "tags": ["bedroom", "furniture", "sleeping"],
+      "bounds_min": {"x": -1.0, "y": 0, "z": -1.1},
+      "bounds_max": {"x": 1.0, "y": 0.6, "z": 1.1}
+    },
+    "nightstand": {
+      "asset_id": "nightstand_001",
+      "asset_path": "furniture/nightstand_01",
+      "display_name": "Nightstand",
+      "category": "furniture",
+      "tags": ["bedroom", "furniture", "storage"],
+      "bounds_min": {"x": -0.25, "y": 0, "z": -0.25},
+      "bounds_max": {"x": 0.25, "y": 0.5, "z": 0.25}
+    },
+    "desk": {
+      "asset_id": "desk_001",
+      "asset_path": "furniture/desk_01",
+      "display_name": "Office Desk",
+      "category": "furniture",
+      "tags": ["office", "furniture", "workspace"],
+      "bounds_min": {"x": -0.7, "y": 0, "z": -0.35},
+      "bounds_max": {"x": 0.7, "y": 0.75, "z": 0.35}
+    },
+    "chair": {
+      "asset_id": "chair_001",
+      "asset_path": "furniture/chair_01",
+      "display_name": "Office Chair",
+      "category": "furniture",
+      "tags": ["office", "furniture", "seating"],
+      "bounds_min": {"x": -0.3, "y": 0, "z": -0.3},
+      "bounds_max": {"x": 0.3, "y": 1.0, "z": 0.3}
+    },
+    "sofa": {
+      "asset_id": "sofa_001",
+      "asset_path": "furniture/sofa_01",
+      "display_name": "3-Seat Sofa",
+      "category": "furniture",
+      "tags": ["living", "furniture", "seating"],
+      "bounds_min": {"x": -1.0, "y": 0, "z": -0.45},
+      "bounds_max": {"x": 1.0, "y": 0.85, "z": 0.45}
+    },
+    "armchair": {
+      "asset_id": "armchair_001",
+      "asset_path": "furniture/armchair_01",
+      "display_name": "Armchair",
+      "category": "furniture",
+      "tags": ["living", "furniture", "seating"],
+      "bounds_min": {"x": -0.4, "y": 0, "z": -0.4},
+      "bounds_max": {"x": 0.4, "y": 0.9, "z": 0.4}
+    },
+    "coffee_table": {
+      "asset_id": "coffee_table_001",
+      "asset_path": "furniture/coffee_table_01",
+      "display_name": "Coffee Table",
+      "category": "furniture",
+      "tags": ["living", "furniture", "table"],
+      "bounds_min": {"x": -0.6, "y": 0, "z": -0.4},
+      "bounds_max": {"x": 0.6, "y": 0.45, "z": 0.4}
+    },
+    "bookshelf": {
+      "asset_id": "bookshelf_001",
+      "asset_path": "furniture/bookshelf_01",
+      "display_name": "Bookshelf",
+      "category": "furniture",
+      "tags": ["office", "furniture", "storage"],
+      "bounds_min": {"x": -0.4, "y": 0, "z": -0.2},
+      "bounds_max": {"x": 0.4, "y": 1.8, "z": 0.2}
+    },
+    "wardrobe": {
+      "asset_id": "wardrobe_001",
+      "asset_path": "furniture/wardrobe_01",
+      "display_name": "Wardrobe",
+      "category": "furniture",
+      "tags": ["bedroom", "furniture", "storage"],
+      "bounds_min": {"x": -0.6, "y": 0, "z": -0.3},
+      "bounds_max": {"x": 0.6, "y": 2.0, "z": 0.3}
+    },
+    "tv_stand": {
+      "asset_id": "tv_stand_001",
+      "asset_path": "furniture/tv_stand_01",
+      "display_name": "TV Stand",
+      "category": "furniture",
+      "tags": ["living", "furniture", "entertainment"],
+      "bounds_min": {"x": -0.8, "y": 0, "z": -0.25},
+      "bounds_max": {"x": 0.8, "y": 0.5, "z": 0.25}
+    },
+    "lamp": {
+      "asset_id": "lamp_001",
+      "asset_path": "decorations/lamp_01",
+      "display_name": "Table Lamp",
+      "category": "decoration",
+      "tags": ["lighting", "decoration"],
+      "bounds_min": {"x": -0.15, "y": 0, "z": -0.15},
+      "bounds_max": {"x": 0.15, "y": 0.45, "z": 0.15}
+    },
+    "floor_lamp": {
+      "asset_id": "floor_lamp_001",
+      "asset_path": "decorations/floor_lamp_01",
+      "display_name": "Floor Lamp",
+      "category": "decoration",
+      "tags": ["lighting", "decoration"],
+      "bounds_min": {"x": -0.2, "y": 0, "z": -0.2},
+      "bounds_max": {"x": 0.2, "y": 1.6, "z": 0.2}
+    },
+    "plant": {
+      "asset_id": "plant_001",
+      "asset_path": "decorations/plant_01",
+      "display_name": "Potted Plant",
+      "category": "decoration",
+      "tags": ["decoration", "nature"],
+      "bounds_min": {"x": -0.25, "y": 0, "z": -0.25},
+      "bounds_max": {"x": 0.25, "y": 0.8, "z": 0.25}
+    },
+    "rug": {
+      "asset_id": "rug_001",
+      "asset_path": "decorations/rug_01",
+      "display_name": "Area Rug",
+      "category": "decoration",
+      "tags": ["decoration", "floor"],
+      "bounds_min": {"x": -1.5, "y": 0, "z": -1.0},
+      "bounds_max": {"x": 1.5, "y": 0.02, "z": 1.0}
+    }
+  }
+}

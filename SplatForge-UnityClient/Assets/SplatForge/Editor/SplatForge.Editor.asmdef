@@ -1,0 +1,20 @@
+{
+    "name": "SplatForge.Editor",
+    "rootNamespace": "SplatForge.Editor",
+    "references": [
+        "SplatForge.Runtime",
+        "GaussianSplatting",
+        "GaussianSplattingEditor"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
