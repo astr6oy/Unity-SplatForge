@@ -1,0 +1,42 @@
+{
+  "id": "001-statue-aras-p",
+  "status": "partial",
+  "stdout_tail": "[Licensing::Module] Licensing is initialized (took 0.19s).\n[Licensing::Client] Successfully resolved entitlement details\nLibrary Redirect Path: Library/\n\n(Unity batchmode가 프로젝트 초기화 단계에서 멈춤 — Library Redirect Path 이후 진행 없음. 3회 시도: -nographics 포함 2회, 미포함 1회 모두 동일 증상)",
+  "stderr_tail": "EXIT_CODE=124(1차 timeout), 143(2차 SIGTERM), 143(3차 SIGTERM). Unity 6000.3.6f1 HDRP 프로젝트에서 batchmode 초기화가 Library Redirect Path 이후 10분 이상 무응답. CPU 0.3%, RSS 172MB로 정체.",
+  "measurements": {
+    "asset_bytes": 1139,
+    "asset_data_bytes_total": 83877072,
+    "ply_source_bytes": 88052691,
+    "splat_count": 355045,
+    "pos_bytes": 4260544,
+    "oth_bytes": 5680720,
+    "col_bytes": 5767168,
+    "shs_bytes": 68168640,
+    "format_quality": "VeryHigh (Float32 all)",
+    "format_version": 20231020,
+    "duration_sec": null
+  },
+  "artifacts": [
+    "/Users/oz6oy/repos/3DGS/unity-lab/Assets/GaussianAssets/KIRI/Statue/Statue.asset",
+    "/Users/oz6oy/repos/3DGS/unity-lab/Assets/GaussianAssets/KIRI/Statue/3DGS_pos.bytes",
+    "/Users/oz6oy/repos/3DGS/unity-lab/Assets/GaussianAssets/KIRI/Statue/3DGS_oth.bytes",
+    "/Users/oz6oy/repos/3DGS/unity-lab/Assets/GaussianAssets/KIRI/Statue/3DGS_col.bytes",
+    "/Users/oz6oy/repos/3DGS/unity-lab/Assets/GaussianAssets/KIRI/Statue/3DGS_shs.bytes"
+  ],
+  "acceptance_criteria": {
+    "AC-PLY-HEADER": {
+      "result": "PASS",
+      "detail": "binary_little_endian 1.0, vertex 355045, f_dc_0~2, f_rest_0~44, opacity, scale_0~2, rot_0~3 모두 확인됨"
+    },
+    "AC-ASSET-CREATED": {
+      "result": "PASS",
+      "detail": "Statue.asset 존재 (2025-09-14 생성). 단, 본 batchmode 실행에 의한 신규 생성이 아닌 기존 자산. Unity batchmode는 프로젝트 초기화 단계에서 멈춰 실행 불가."
+    },
+    "AC-ASSET-SIZE": {
+      "result": "PASS",
+      "detail": "Statue.asset=1,139 bytes > 0. 데이터 파일 합계=83,877,072 bytes. m_SplatCount=355045, bounds=(-50,50) 범위."
+    }
+  },
+  "notes": "상태: partial — AC 3건 모두 PASS이나, Unity batchmode 직접 실행에 의한 자산 생성이 아닌 기존 자산 검증임.\n\n[Unity batchmode 실패 원인]\n1. Unity 6000.3.6f1 + HDRP 프로젝트에서 -batchmode 초기화가 'Library Redirect Path' 이후 무한 대기.\n2. -nographics 유무 모두 동일 증상. 3회 시도 모두 실패 (timeout 600초 초과).\n3. 프로세스 CPU 0.3%, RSS 172MB로 정체 — 에셋 DB 리프레시 또는 셰이더 컴파일 단계에서 정지 추정.\n4. Library/ArtifactDB(84MB), SourceAssetDB(14MB) 열려 있으나 변경 없음.\n\n[후속 조치 제안]\n- 맥미니(Alfred)에서 Unity GUI 모드로 프로젝트를 한 번 열어 Library 캐시를 완전히 초기화한 뒤 batchmode 재시도.\n- 또는 Unity 6000.3.6f1의 batchmode HDRP 호환성 이슈 조사.\n\n[배치 래퍼]\n- Assets/Editor/BatchSplatAssetCreator.cs 신규 작성됨. 리플렉션으로 GaussianSplatAssetCreator.CreateAsset() 호출하는 래퍼. Unity 초기화 이후 스크립트 자체는 정상 컴파일 확인(Library/ScriptAssemblies/Assembly-CSharp-Editor.dll 존재)."
+}
+

@@ -1,0 +1,37 @@
+{
+  "id": "001-rev3-statue-aras-p-unity-6000-3-13",
+  "status": "failed",
+  "stdout_tail": "Unity Editor version:    6000.3.13f1 (8c4f11e4fb20)\nBranch:                  6000.3/staging\nBuild type:              Release\nBatch mode:              YES\nmacOS version:           Version 26.0.1 (Build 25A362)\nDarwin version:          25.0.0\nArchitecture:            arm64\nRunning under Rosetta:   NO\nAvailable memory:        65536 MB\nDate:                    2026-04-20T09:59:05Z\n[Licensing::Module] Trying to connect to existing licensing client channel...\n[Licensing::IpcConnector] Channel LicenseClient-oz6oy doesn't exist\nLaunching external process: Unity.Licensing.Client\nLaunching external process: UnityPackageManager\nSuccessfully changed project path to: /Users/oz6oy/repos/3DGS/unity-lab\n[UnityMemory] Configuration Parameters loaded\nPlayer connection [8806287360] Host joined multi-casting on [225.0.0.222:54997]...\nInput System module state changed to: Initialized.\n[Physics::Module] Initialized fallback backend.\n[Package Manager] Connected to IPC stream \"Upm-95167\" after 0.1 seconds.\n[Licensing::Module] Licensing is initialized (took 0.19s).\n[Licensing::Module] License group: Unity Personal (ULF)\nLibrary Redirect Path: Library/",
+  "stderr_tail": "",
+  "measurements": {
+    "asset_bytes": 0,
+    "duration_sec_attempt1": 560,
+    "duration_sec_attempt2": 510,
+    "exit_code": -15,
+    "log_lines": 100
+  },
+  "artifacts": [
+    "/Users/oz6oy/sf-test-agent/logs/001-rev3.log"
+  ],
+  "test_run_summary": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "skipped": 0,
+    "duration_ms": 0,
+    "xml_path": "미생성 — Unity가 테스트 실행 단계에 도달하지 못함"
+  },
+  "individual_tests": [],
+  "hang_observation": "Unity 6000.3.13f1에서도 Library Redirect Path hang 재현. 2회 시도 모두 동일 패턴.\n\n시도1: 로그 100줄, 9분 16초 경과, CPU 0.4%, SLEEPING. Library Redirect Path 이후 로그 출력 0줄. DB 파일(SourceAssetDB/ArtifactDB) 시작 직후 1회 수정 후 변경 없음. stale LibraryInitializing(rev2 잔존)이 원인일 가능성 검토하여 kill 후 해당 파일 삭제.\n\n시도2: LibraryInitializing 삭제 후 재실행. Unity가 LibraryInitializing을 자체 재생성(18:59). 로그 100줄, 8분 31초 경과, CPU 0.3%, SLEEPING. 동일 정체. LibraryInitializing stale 파일 가설 기각.\n\nrev2(6000.3.6f1)와 비교: rev2는 Library Redirect Path → FMOD 초기화까지 도달(102줄), rev3(6000.3.13f1)는 FMOD 단계에조차 미도달(100줄). 6000.3.13f1이 더 일찍 정체하는 것으로 보이나, 근본 원인은 동일 — Unity Editor batchmode 프로젝트 로딩 hang.\n\n핵심 결론: 이 hang은 Unity 6000.3.6f1 특이 버그가 아님. 6000.3.13f1에서도 동일하게 재현되므로 Unity 6000.3.x 계열 공통 문제이거나, 이 프로젝트 Library/설정의 구조적 문제.",
+  "created_files": [],
+  "acceptance_criteria_evaluation": {
+    "AC-REQUIRED-READING": "PASS — unity-test-framework-kit.md, unity-test-operations.md 모두 Read 호출 완료",
+    "AC-TEST-DISCOVERED": "FAIL — Unity가 asset import/컴파일 단계에 도달하지 못해 테스트 감지 불가",
+    "AC-PLY-HEADER-TEST-PASS": "FAIL — 테스트 미실행 (Unity hang)",
+    "AC-ASSET-LOAD-TEST-PASS": "FAIL — 테스트 미실행 (Unity hang)",
+    "AC-NUNIT-XML": "FAIL — editmode.xml 미생성",
+    "AC-NO-BATCHMODE-HANG": "FAIL — Library Redirect Path 무한대기가 6000.3.13f1에서도 재현됨"
+  },
+  "notes": "rev3 결과 요약: Unity 6000.3.13f1(2026-04-20 설치)로 재시도했으나 rev2와 동일한 Library Redirect Path hang 재현. 2회 시도(LibraryInitializing 삭제 전/후) 모두 실패.\n\n코드 준비 상태: rev2에서 생성한 테스트 코드(StatueImportTests.cs 3개 테스트, 헬퍼 3파일, asmdef) 재사용. 삭제/수정 없음. Unity가 정상 로드되면 즉시 실행 가능.\n\n추가 가설 (Alfred 검토용):\n1. Library 캐시 호환성: Library가 6000.3.6f1에서 빌드됨. 6000.3.13f1이 이를 업그레이드하려다 hang 가능성. Library 삭제 후 클린 빌드 시도 제안.\n2. HDRP/URP 파이프라인: 프로젝트가 HDRP 사용 시 batchmode -nographics와 충돌 가능. 단, 이번 실행에서 -nographics 미사용(TaskSpec 명령 준수).\n3. PackageManager lock: UPM 소켓(/tmp/Unity-Upm-*.sock) 관련 교착 가능성.\n4. macOS 26.0.1 호환성: Darwin 25.0.0 + Unity 6000.3.x ARM64 조합 문제 가능성.\n5. -batchmode 없이 GUI 모드로 프로젝트를 한 번 열어 Library 업그레이드 완료 후 batchmode 재시도 제안.\n\n가장 유력한 다음 단계: (a) Library 완전 삭제 후 클린 빌드, 또는 (b) GUI 모드로 프로젝트 열어 Library 업그레이드 완료 후 batchmode 재시도."
+}
+

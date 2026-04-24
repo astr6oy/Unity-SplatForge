@@ -1,0 +1,34 @@
+{
+  "id": "001-rev2-statue-aras-p-unity-test-runner",
+  "status": "failed",
+  "stdout_tail": "Library Redirect Path: Library/\nFMOD failed to initialize the output device.: \"A call to a standard soundcard driver failed, which could possibly mean a bug in the driver or resources were missing or exhausted. \" (57)\nForced to initialize FMOD to to the device driver's system output rate 48000, this may impact performance and/or give inconsistent experiences compared to selected sample rate 48000",
+  "stderr_tail": "",
+  "measurements": {
+    "asset_bytes": 0,
+    "duration_sec": 1200,
+    "exit_code": 124,
+    "log_lines": 102
+  },
+  "artifacts": [
+    "/Users/oz6oy/sf-test-agent/logs/001-rev2.log"
+  ],
+  "test_run_summary": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "skipped": 0,
+    "duration_ms": 0,
+    "xml_path": "미생성 — Unity Test Runner가 테스트 실행 단계에 도달하지 못함"
+  },
+  "individual_tests": [],
+  "hang_observation": "task-001과 동일한 hang 패턴 재현. Unity 6000.3.6f1 batchmode -runTests 경로에서도 'Library Redirect Path: Library/' + FMOD 초기화 이후 로그 출력 완전 정지. 20분(1200초) 동안 102줄에서 단 한 줄도 추가되지 않음. exit code 124(timeout killed). 로그 타임스탬프 분석: Licensing 초기화(09:00:46~09:00:47 KST) 완료 후 FMOD까지 도달했으나, 이후 asset import/스크립트 컴파일 단계 진입 증거 없음. -runTests 경로도 -executeMethod 경로(task-001)와 동일하게 정체. HDRP 프로젝트의 batchmode 초기 로딩이 logFile flush 없이 장시간 진행되거나, 실제 hang이 발생하는 것으로 판단.",
+  "created_files": [
+    "/Users/oz6oy/repos/3DGS/unity-lab/Assets/Tests/EditMode/Helpers/TestFixtureLoader.cs",
+    "/Users/oz6oy/repos/3DGS/unity-lab/Assets/Tests/EditMode/Helpers/TestStageBuilder.cs",
+    "/Users/oz6oy/repos/3DGS/unity-lab/Assets/Tests/EditMode/Helpers/SelectorAliasRegistry.cs",
+    "/Users/oz6oy/repos/3DGS/unity-lab/Assets/Tests/EditMode/SplatForge.Testing.EditMode.asmdef",
+    "/Users/oz6oy/repos/3DGS/unity-lab/Assets/Tests/EditMode/StatueImportTests.cs"
+  ],
+  "notes": "AC 평가:\n- AC-REQUIRED-READING: PASS — unity-test-framework-kit.md, unity-test-operations.md 모두 Read 호출 완료\n- AC-TEST-DISCOVERED: FAIL — Unity Test Runner가 asset import/컴파일 단계에 도달하지 못해 테스트 감지 불가\n- AC-PLY-HEADER-TEST-PASS: FAIL — 테스트 미실행\n- AC-ASSET-LOAD-TEST-PASS: FAIL — 테스트 미실행\n- AC-NUNIT-XML: FAIL — editmode.xml 미생성\n- AC-NO-BATCHMODE-HANG: FAIL — task-001 'Library Redirect Path 무한대기' 증상이 -runTests 경로에서도 동일하게 재현됨\n\n코드 준비 상태: 테스트 코드(StatueImportTests.cs, 3개 헬퍼, asmdef)는 정상 작성 완료. Unity가 batchmode에서 프로젝트를 정상 로드하면 테스트 실행 가능. 근본 원인은 Unity 6000.3.6f1 + HDRP 프로젝트의 batchmode 초기 로딩 hang으로 추정.\n\n핵심 발견: -executeMethod(task-001)든 -runTests(task-001-rev2)든 Unity batchmode 진입점과 무관하게 동일한 위치에서 정체. 이는 테스트 프레임워크 문제가 아닌 Unity Editor 자체의 프로젝트 로딩 문제."
+}
+
