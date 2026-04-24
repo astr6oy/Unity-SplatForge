@@ -1,7 +1,3 @@
-<!-- Insert: Paper03 §2.4 뒤, §2.5 앞 (신규 절 "2.4.5 macOS 생태계의 CUDA-free 3DGS 도구") -->
-<!-- Anchor: 기존 §2.4 UnityGaussianSplatting 관련 서술 직후. §2.5 물리 보정·검증 연구 직전에 삽입 -->
-<!-- Source: findings/macos-3dgs-tools-2026-04-21, findings/brush-macos-poc-confirmed-2026-04-22 -->
-
 ## 2.4.5 macOS 생태계의 CUDA-free 3DGS 도구
 
 3DGS 관련 학습·렌더 도구 대부분은 원 3DGS (Kerbl et al., 2023) 구현이 CUDA·C++ 래스터라이저를 전제로 한다는 계보적 이유로 NVIDIA GPU 환경을 가정한다.
@@ -42,15 +38,3 @@ aras-p Metal 경로의 공개 수치는 M1 Max 6.1M splats에서 21.5ms/46FPS를
 
 본 연구의 차별점은 **Unity 생태계와 macOS 네이티브 학습 도구의 연결 경로를 실측으로 확증**한 점에 있다.
 기존 Paper01·Paper02가 상정한 Python+Windows+CUDA 2-tier 아키텍처는 2026-04의 도구 성숙도에 따라 macOS 단일 기기 경로로 축약 가능해졌으며, 본 논문은 이 축약의 타당성을 PoC로 입증한다.
-
----
-
-## 신규 레퍼런스 후보 ([NEW:Z] 플레이스홀더)
-
-- `[NEW:M1]` Brussee, A. *Brush: Cross-platform 3D Gaussian Splatting in Rust/wgpu* (2026). https://github.com/ArthurBrussee/brush
-- `[NEW:M2]` Ghif, M. *splat-apple: MLX/MPS Gaussian Splatting for Apple Silicon* (2026). https://github.com/ghif/splat-apple
-- `[NEW:M3]` Tofy, P. *OpenSplat: libtorch-based 3DGS with MPS/CUDA/ROCm backends* (2025). https://github.com/pierotofy/OpenSplat
-- `[NEW:M4]` Iffyloop. *gsplat-mps: MPS fork of nerfstudio/gsplat 0.1.3* (2024). https://github.com/iffyloop/gsplat-mps
-- `[NEW:M5]` Nerfstudio Project. *gsplat: CUDA accelerated rasterization of gaussian splatting* (2026). https://github.com/nerfstudio-project/gsplat
-
-기존 Paper03 재활용 서지: Kerbl et al., 2023 (3DGS 원전); Pranckevičius, 2025 (aras-p UnityGaussianSplatting — 기존 §2.4 참조).

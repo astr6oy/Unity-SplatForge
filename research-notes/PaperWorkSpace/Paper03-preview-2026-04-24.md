@@ -2,8 +2,6 @@
 
 Semantic 3D Space Automatic Construction System Using Large Language Models (LLM) and Generative 3DGS
 
-> **[PREVIEW 2026-04-24]** 본 파일은 Alfred가 준비한 시뮬레이션 통합본입니다. 기반은 2026-04-20 origin/main commit `3b98ff3` Paper03.md이며, 여기에 `drafts/`의 3개 신규 섹션을 삽입·번호 정합성 보정한 결과입니다. 맥북에 있는 2026-04-22 MEDIUM 레퍼런스 통합(References [41]~[44], §2.3·§2.4·§5.2 본문 확장)은 포함되지 않았습니다 — 맥북 복구 후 master push 완료 시 Paper03.md 본편과 병합 예정입니다. 원본 Paper03.md는 무편집으로 보존되었습니다.
-
 <!--
 Paper03.md — 2026-04-21 생성, 2026-04-21 최종 갱신
 기반: Paper01.md (2026-04-15 버전)

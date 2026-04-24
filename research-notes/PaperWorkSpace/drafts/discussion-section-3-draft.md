@@ -1,7 +1,3 @@
-<!-- Insert: Paper03 §3 Discussion (신규 절 전체 — 기존 §2 배경연구와 §4 시스템 개요 사이 또는 §5 한계와 전망 직전에 배치) -->
-<!-- Anchor: 기존 §2 말미 "…본 연구의 배경을 구성한다." 뒤, 혹은 §4 시스템 개요 앞에 3절을 신설한다 -->
-<!-- Source: synthesis-2026-04-23 §3, findings/3dgs-reconstruction-speed-survey-2026-04-23, findings/world-models-survey-2026-04-21 -->
-
 # 3. 논의 (Discussion)
 
 본 절은 본 연구 파이프라인이 놓인 기술적 좌표를 세 축에서 정리한다.
@@ -148,23 +144,3 @@ Lyra 2.0이 surface mesh를 공출력하도록 확장된 것은 "3DGS만으로 �
 (i) 월드 모델 계열의 collision 불투명성 우회.
 (ii) 3DGS 네이티브 물리 연구의 엔진 통합 지연 우회.
 (iii) 메시 기반 파이프라인의 실사성 한계 보완.
-
----
-
-## 신규 레퍼런스 후보 ([NEW:Z] 플레이스홀더)
-
-본 절 신규 인용 중 기존 Paper03 References 섹션에 없는 것으로 추정되는 항목은 다음과 같다. Paper03 병합 시 확인 후 번호 부여.
-
-- `[NEW:D1]` Wang, S. et al. *DUSt3R: Geometric 3D Vision Made Easy*. CVPR 2024. arXiv:2312.14132.
-- `[NEW:D2]` Leroy, V. et al. *Grounding Image Matching in 3D with MASt3R*. ECCV 2024. arXiv:2406.09756.
-- `[NEW:D3]` Fan, Z. et al. *InstantSplat: Sparse-view SfM-free Gaussian Splatting in Seconds*. arXiv:2403.20309 (2024).
-- `[NEW:D4]` Sarlin, P.-E. et al. *From Coarse to Fine: Robust Hierarchical Localization at Large Scale (hloc)*. CVPR 2019. arXiv:1812.03506.
-- `[NEW:D5]` Kong, L., Yang, W., Mei, J. et al. *3D and 4D World Modeling: A Survey*. arXiv:2509.07996 (2025).
-- `[NEW:D6]` Wang, Z. et al. *Lyra: Generative 3D Scene Reconstruction via Video Diffusion Model Self-Distillation*. arXiv:2509.19296 (2025).
-- `[NEW:D7]` *Lyra 2.0: Explorable Generative 3D Worlds*. arXiv:2604.13036 (2026).
-- `[NEW:D8]` Tencent Hunyuan. *HunyuanWorld 1.0: Generating Immersive, Explorable, and Interactive 3D Worlds from Words or Pixels*. arXiv:2507.21809 (2025).
-- `[NEW:D9]` World Labs. *Marble: A Multimodal World Model* (2025.11). https://www.worldlabs.ai/blog/marble-world-model
-- `[NEW:D10]` DeepMind. *Genie 3: A New Frontier for World Models* (2025.08). https://deepmind.google/blog/genie-3-a-new-frontier-for-world-models/
-- `[NEW:D11]` Xie, T. et al. *PhysGaussian: Physics-Integrated 3D Gaussians for Generative Dynamics*. CVPR 2024.
-
-기존 Paper03에 이미 포함된 것으로 확인된 서지(PhysSplat = Zhao, 2024; UnityGaussianSplatting = Aras-p; LayoutGPT = Feng, 2024; Holodeck = Yang, 2024; 3DGS 원전 = Kerbl et al., 2023; LLplace = Yang & Lu, 2024; GASP = Borycki et al., 2025; SIGGRAPH Talk = Baltsavias et al., 2025; FurniScene = Zhang et al., 2024)는 이름·연도로 재사용한다.
