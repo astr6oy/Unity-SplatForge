@@ -319,15 +319,7 @@ A에서 B로 가면 Grounding이 62.9%→91.4%로 뛰지만 Safety Violation은 
 
 ### 5.2. 월드 모델 대비 본 연구의 입지
 
-#### 5.2.1. 월드 모델 흐름의 개요
-
-2024년 말부터 2026년 상반기에 걸쳐 **월드 모델(World Model)** 담론이 재부상하였다. 원류는 Ha & Schmidhuber(2018)[19]가 제시한 V-M-C 구조의 환경 압축 표현이다. 2024-2026 기류의 직접적 동인은 Sora·Veo·Runway Gen-4로 대표되는 생성형 비디오의 시공간 일관성 강화와 Fei-Fei Li가 제기한 공간 지능(Spatial Intelligence) 담론, 그리고 NVIDIA Cosmos[23]로 대표되는 physical AI 데이터 병목 해소 수요이다. Kong et al.(2025)[20]의 서베이는 해당 흐름을 Video-based, 3D-scene-based, Interactive/Playable, Foundation-for-Physical-AI의 네 축으로 분류하며, 본 절의 비교 축도 이 분류를 따른다.
-
-#### 5.2.2. 3D-scene 축과 본 연구의 기술 계보 공유
-
-본 연구와 직접 인접한 축은 **3D-scene-based** 계열로, 출력 표현이 3DGS로 수렴한다는 점에서 기술 계보를 공유한다. NVIDIA Lyra(Wang et al., 2025[21]; Lyra 2.0, 2026[22])는 비디오 확산 모델의 암묵적 3D 지식을 3DGS로 self-distillation하여 텍스트·단일 이미지에서 실시간 렌더링 가능한 장면을 합성한다. Lyra 2.0은 surface mesh 공출력을 지원하여 실시간 엔진·물리 시뮬레이터 로드를 명시한다. Tencent HunyuanWorld 1.0[27]과 HY-World 2.0[28]은 3DGS와 mesh를 함께 export하는 오픈소스 SOTA를 지향하며, World Labs의 Marble[26]은 최초의 상용 generative world model로 Vision Pro·Quest 3 즉시 호환을 표방한다. Interactive/Playable 축의 대표인 DeepMind Genie 3[25]는 720p 24fps 실시간 응답과 수 분 단위의 일관성을 하드코딩 물리 엔진 없이 autoregressive 학습으로 달성한다.
-
-#### 5.2.3. 생성 단위의 차이 — 씬 E2E vs 의미론적 조립
+§2.5에서 정리한 월드 모델 계열(Lyra/HY-World/Marble/Genie 3/Cosmos)은 Kong et al.[20]의 4축 중 **3D-scene-based**(Lyra·HY-World·Marble)와 **Interactive/Playable**(Genie 3), **Foundation-for-Physical-AI**(Cosmos) 세 축에서 본 연구와 인접한다. 본 절은 그 인접 관계를 결과 맥락에서 재해석하여 본 연구의 좌표를 명확히 한다.
 
 본 연구는 이 흐름 안에서 **"의미론적 배치 기반 조립"**이라는 별개의 좌표를 차지한다. 월드 모델 대부분이 **씬 전체를 통째로 생성**하는 E2E 접근을 채택하는 반면, 본 연구는 기존·생성형 3DGS 에셋을 LLM의 배치 규칙으로 **의미론적으로 조합**하고 Unity 물리엔진으로 검증한다. 표 6은 주요 축에서의 대비를 정리한다.
 
@@ -343,17 +335,7 @@ A에서 B로 가면 Grounding이 62.9%→91.4%로 뛰지만 Safety Violation은 
 | 인프라 요구 | 대규모 GPU 클러스터 학습 필요 | 단일 워크스테이션 + macOS 로컬 경로 |
 | 런타임 통합 | 독자 뷰어 또는 신규 엔진 로더 | Unity 네이티브 워크플로 |
 
-#### 5.2.4. 본 연구의 차별점 세 가지
-
-이 대비에서 본 연구의 차별점은 세 가지로 요약된다.
-
-첫째, **엔진 네이티브 통합**이다. 월드 모델은 대체로 독립 모델이거나 자체 뷰어를 제공하지만, 본 연구는 Unity 런타임에서 `HybridSceneObject`·`LayoutValidator`·`SceneComposer` 등 기존 컴포넌트를 변경 없이 활용한다.
-
-둘째, **의미론적 배치 특화**이다. Marble·HY-World가 "방 전체를 한 번에" 생성하는 것과 달리, 본 연구는 LLM이 산출한 scene graph에 따라 개별 객체를 배치·검증하므로 에셋 재사용과 수정이 단위별로 가능하다.
-
-셋째, **저자원 재현성**이다. Genie 3나 Cosmos가 대규모 인프라를 전제하는 반면, 본 연구는 macOS 단일 기기에서 Brush 학습과 aras-p 임포트까지 완결되는 경로를 확보한다. 이는 학부·석사 단계의 재현 가능성과 직결된다.
-
-#### 5.2.5. 제약과 확장 방향
+이 대비에서 본 연구의 차별점은 세 가지로 요약된다. 첫째, **엔진 네이티브 통합**이다. 월드 모델은 대체로 독립 모델이거나 자체 뷰어를 제공하지만, 본 연구는 Unity 런타임에서 `HybridSceneObject`·`LayoutValidator`·`SceneComposer` 등 기존 컴포넌트를 변경 없이 활용한다. 둘째, **의미론적 배치 특화**이다. Marble·HY-World가 "방 전체를 한 번에" 생성하는 것과 달리, 본 연구는 LLM이 산출한 scene graph에 따라 개별 객체를 배치·검증하므로 에셋 재사용과 수정이 단위별로 가능하다. 셋째, **저자원 재현성**이다. Genie 3나 Cosmos가 대규모 인프라를 전제하는 반면, 본 연구는 macOS 단일 기기에서 Brush 학습과 aras-p 임포트까지 완결되는 경로를 확보한다.
 
 한편 본 연구의 제약도 명확하다. 월드 모델 대비 **생성 자유도**는 에셋 풀 범위로 한정되며, 비정형 공간이나 비일상 객체의 즉석 생성은 월드 모델 계열이 우세하다. 따라서 후속 연구에서 Lyra·HY-World의 씬 생성 결과를 본 파이프라인의 에셋 입력으로 편입하는 **하이브리드 경로**가 자연스러운 확장 방향으로 남는다.
 
