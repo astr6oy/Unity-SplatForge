@@ -15,11 +15,43 @@ Paper03.md — 2026-04-21 생성, 2026-04-21 최종 갱신
 
 ## 차례
 
-1 서론 — 1.1 배경 / 1.2 목적 / 1.3 구성
-2 관련 연구 — 2.1 3DGS / 2.2 생성형 모델링 / 2.3 LLM 공간 추론 / 2.4 게임 엔진 통합 / 2.5 월드 모델 / 2.6 물리·의미론 통합 / 2.7 공백
-3 파이프라인 설계 — 3.1 구조 / 3.2 공간 뼈대 / 3.3 에셋 생성 / 3.4 배치·검증 / 3.5 로직 연동
-4 실험 — 4.1 환경 / 4.2 결과 / 4.3 정성 / 4.4 정량 / 4.5 절제
-5 결론 — 5.1 요약 / 5.2 전망
+**1 서론**
+  - 1.1 배경
+  - 1.2 목적
+  - 1.3 구성
+
+**2 관련 연구**
+  - 2.1 3DGS
+  - 2.2 생성형 모델링
+  - 2.3 LLM 공간 추론
+  - 2.4 게임 엔진 통합
+  - 2.4.5 macOS CUDA-free 3DGS 도구
+  - 2.5 월드 모델
+  - 2.6 물리·의미론 통합
+  - 2.7 공백
+
+**3 파이프라인 설계**
+  - 3.1 구조
+  - 3.2 공간 뼈대
+  - 3.3 에셋 생성
+  - 3.4 배치·검증
+  - 3.5 로직 연동
+
+**4 실험**
+  - 4.1 환경
+  - 4.2 결과
+  - 4.3 정성
+  - 4.4 정량
+  - 4.5 절제
+
+**5 논의**
+  - 5.1 속도-품질 trade-off
+  - 5.2 월드 모델 대비
+  - 5.3 하이브리드 표현 정당화
+
+**6 결론**
+  - 6.1 요약
+  - 6.2 전망
 
 ## 요약
 
@@ -61,7 +93,7 @@ Keywords: 3DGS, LLM, furniture layout automation, Unity, hybrid authoring
 
 ### 1.3. 논문 구성
 
-2장은 3DGS, 생성형 모델링, LLM 공간 추론, 게임 엔진 통합, 월드 모델, 물리·의미론 통합 순으로 관련 연구를 짚고 선행 연구의 공백을 정리한다. 3장에서 제안 파이프라인의 설계를, 4장에서 실험 결과를, 5장에서 한계와 전망을 다룬다.
+2장은 3DGS, 생성형 모델링, LLM 공간 추론, 게임 엔진 통합, macOS CUDA-free 3DGS 도구 생태계, 월드 모델, 물리·의미론 통합 순으로 관련 연구를 짚고 선행 연구의 공백을 정리한다. 3장에서 제안 파이프라인의 설계를, 4장에서 실험 결과를, 5장에서 본 연구의 기술적 위치를 속도·월드 모델·하이브리드 표현의 세 축에서 논의하고, 6장에서 결론과 한계를 다룬다.
 
 ## 2. 관련 연구
 
@@ -104,6 +136,34 @@ AI가 만든 3D 콘텐츠를 게임 엔진 안에서 실제로 돌리는 연구�
 LLM과 게임 엔진을 잇는 흐름은 종전에는 NPC 대화 생성(Park et al., 2023) 쪽에 집중되어 있었으나, 최근에는 **공간 저작·에셋 관리**로 확산되고 있다. 2026년 초 공개된 Unity 공식 AI Assistant 2.0(Unity Technologies, 2026)은 Model Context Protocol(MCP) 기반 에디터 통합을 제공해, Claude Code나 Cursor 같은 외부 에이전트가 자연어 지시로 씬을 생성하거나 에셋을 재배치하고 스크립트를 편집할 수 있게 한다. 이 공식 경로와 별개로 CoplayDev·CoderGamester 등이 운영하는 커뮤니티 MCP 구현도 활발하며, ai-powered-level-designer(TaaroBravo, 2025)처럼 Unity 6 에디터 확장 형태로 자연어 레벨 설계를 시도하는 개인 프로젝트도 나타났다. 다만 이들 MCP 계열은 대부분 **에디터 전용**이라는 점에서 런타임 배포본에서 동일 기능이 보장되지 않으며, 연구 재현성이 중요한 학위 논문 평가에는 제약이 따른다.
 
 공간 레이아웃 목적의 기성 통합으로는 Holodeck(Yang et al., 2024)이 있으나 Habitat 기반이라 Unity·Unreal의 물리 시스템과는 거리가 있다. 본 연구는 에디터 편의에 의존하지 않는 REST API 아키텍처로 LLM 좌표 제안과 런타임 물리 검증을 결합한다는 점에서, MCP 계열과는 다른 축에 자리한다.
+
+### 2.4.5. macOS 생태계의 CUDA-free 3DGS 도구
+
+3DGS 관련 학습·렌더 도구 대부분은 원 3DGS(Kerbl et al., 2023) 구현이 CUDA·C++ 래스터라이저를 전제로 한다는 계보적 이유로 NVIDIA GPU 환경을 가정한다. 본 연구는 개발·검증 환경이 macOS Apple Silicon이라는 제약에서 출발하므로, CUDA 의존 없이 **학습 → PLY → Unity 임포트 → Metal 런타임** 전 구간을 완결할 수 있는 도구 조합을 조사한다.
+
+조사 범위는 2026-04 기준 활발히 유지되는 공개 프로젝트 5건이다. splat-apple(Ghif, 2026; MLX/MPS 이중 경로)[46], Brush(Brussee, 2026; Rust+wgpu 크로스플랫폼)[45], OpenSplat(Tofy, 2025; libtorch MPS)[47], gsplat-mps(Iffyloop, 2024; nerfstudio/gsplat 0.1.3 포크)[48], 그리고 상류 nerfstudio/gsplat(Nerfstudio, 2026; CUDA 전용)이 해당한다. 표 1a는 각 도구의 라이선스·유지 상태·Apple Silicon 성능 수치를 정리한다.
+
+<Table 1a> *macOS CUDA-free 3DGS 학습 도구 비교 (2026-04 기준)*
+
+| 도구 | 백엔드 | 라이선스 | 최근 업데이트 | Stars | Apple Silicon 성능 |
+|------|-------|---------|--------------|-------|------------------|
+| Brush [45] | Rust+wgpu (Burn) | Apache-2.0 | 2026-04-19 | 3961 | 공식 벤치 부재 (본 연구 PoC에서 실측) |
+| splat-apple [46] | MLX C++ Metal / PyTorch MPS | 라이선스 부재 | 2026-02-19 | 10 | M4 Fern MLX 38.5 it/s, PyTorch GCD 10.6 it/s |
+| OpenSplat [47] | libtorch MPS (C++) | AGPL-3.0 | 2025-12-26 | 1949 | cmake `-DGPU_RUNTIME=MPS` 공식 지원 |
+| gsplat-mps [48] | gsplat 0.1.3 포크 + MPS | AGPL-3.0 | 2024-07-06 | 37 | 저자 "not thoroughly tested" 명시 |
+| nerfstudio/gsplat | CUDA 전용 | Apache-2.0 | 2026-04-09 | 4879 | MPS 미지원 (Issue #163 업스트림 제안만 존재) |
+
+본 연구는 학습 백엔드로 **Brush**를, Unity 임포트·렌더 단계로 aras-p[12]의 UnityGaussianSplatting을 각각 채택한다. Brush 선정의 근거는 세 가지이다.
+
+첫째, **라이선스 적합성**이다. Apache-2.0으로 연구·상용 배포에 가장 관용적이며, OpenSplat의 AGPL-3.0 copyleft나 splat-apple의 라이선스 부재 상태를 회피한다. 논문 부록 공개나 후속 상용화 경로 모두에서 법적 불확실성이 최소이다.
+
+둘째, **유지 활발성과 커뮤니티 규모**이다. 2026-04-19 커밋과 stars 3961은 splat-apple(10), gsplat-mps(2024-07 이후 정체)과 대비된다. wgpu 기반 크로스플랫폼 설계는 향후 윈도우·리눅스 서버 경로로 회귀해야 하는 상황에서도 동일 코드베이스 유지가 가능하다.
+
+셋째, **PLY 호환 경로**이다. Brush는 원 3DGS 논문 규격의 PLY 포맷(x/y/z, scale_0-2, opacity, rot_0-3, f_dc_0-2, f_rest 속성)을 로드·저장한다. aras-p 플러그인의 `Tools → Gaussian Splats → Create GaussianSplatAsset` 메뉴가 동일 스키마를 전제하므로 중간 변환 없이 직결된다.
+
+2026-04-22 수행한 E2E PoC에서 Brush 300 iter 학습 → PLY(118 splat, binary_little_endian) → aras-p asset 변환 → Unity PlayMode 렌더까지 6개 AC 전체를 PASS한 바 있다. aras-p Metal 경로의 공개 수치는 M1 Max 6.1M splats에서 21.5ms/46FPS를 기록하여, 런타임 성능은 이미 실용 수준임이 확인된다. 반면 Brush 측 Apple Silicon 학습 시간 수치는 README에 부재하며, 본 연구의 측정치가 독자적 기여로 남을 여지가 있다.
+
+본 연구의 차별점은 **Unity 생태계와 macOS 네이티브 학습 도구의 연결 경로를 실측으로 확증**한 점에 있다. 기존 Paper01·Paper02가 상정한 Python+Windows+CUDA 2-tier 아키텍처는 2026-04의 도구 성숙도에 따라 macOS 단일 기기 경로로 축약 가능해졌으며, 본 논문은 이 축약의 타당성을 PoC로 입증한다.
 
 ### 2.5. 월드 모델
 
@@ -256,9 +316,87 @@ A에서 B로 가면 Grounding이 62.9%→91.4%로 뛰지만 Safety Violation은 
 
 가장 흥미로운 것은 D다. 무작위 배치에 물리 보정을 완벽하게 적용하면 Grounding 100%, Violation 0.000m³으로 기하학적으로는 흠잡을 데 없다. 그런데 Semantic Proximity가 0.31로 곤두박질친다. 침대 옆에 협탁이 안 가고, 책상 앞에 의자가 안 온다는 의미다. 물리적 정합성과 의미론적 정합성은 서로 다른 축의 문제이며, 둘 다 만족시키려면 LLM과 물리 엔진을 함께 써야 한다는 것을 이 결과가 보여준다.
 
-## 5. 결론
+## 5. 논의 (Discussion)
 
-### 5.1. 연구 요약
+본 장은 본 연구 파이프라인이 놓인 기술적 좌표를 세 축에서 정리한다. 첫째, 재구성 속도와 품질 사이의 trade-off를 오프라인 baseline과 feed-forward 계열 대비로 명시한다. 둘째, 2024년 이후 부상한 월드 모델과 본 연구의 접근을 대조한다. 셋째, 메시와 3DGS를 혼용하는 하이브리드 표현의 설계적 정당화를 최근 3DGS 물리 통합 연구와 엮어 보강한다.
+
+### 5.1. 재구성 속도-품질 trade-off
+
+#### 5.1.1. 본 파이프라인의 오프라인 특성
+
+본 연구의 재구성 경로는 COLMAP 기반 sparse reconstruction과 30K iteration의 gradient optimization을 조합한 **오프라인 baseline**에 해당한다. 2026-04-23 PoC 측정(302장, 1280×960 입력, macOS M-계열, Brush Rust+wgpu 학습)을 기준으로 feature 추출 약 2분, exhaustive matcher 2~6시간, mapper 1~3시간, 학습 2~4시간이 소요되어 **총 5~13시간 범위**의 처리 시간을 갖는다. 이는 Kerbl et al.(2023)이 제시한 원 3DGS 학습 프로토콜을 충실히 따를 때 나타나는 전형적 특성이다.
+
+302장 입력의 exhaustive pairing은 $\binom{302}{2} = 45{,}451$ 페어에 달하며, 블록당 97초의 실측치를 기반으로 한 이론 하한만도 79분에 이른다. 본 연구에서 사용한 COLMAP 4.0.3 homebrew 빌드는 `Commit Unknown on Unknown without CUDA`로 SIFT 추출과 matching 전 구간을 CPU에서 실행하므로, 맥북 M-계열의 Metal GPU와 ANE는 재구성 단계에서 유휴 상태로 남는다.
+
+#### 5.1.2. Feed-forward 계열의 시간 단축
+
+2024년 이후의 **feed-forward 계열**은 해당 시간 축을 수초~수분 단위로 단축한다. DUSt3R(Wang et al., 2024)[41]는 feature matching 단계를 생략하고 이미지 쌍에서 dense point cloud를 직접 회귀하며, MASt3R(Leroy et al., 2024)[42]는 correspondence 품질을 개선한 후속 모델이다. InstantSplat(Fan et al., 2024)[43]은 DUSt3R 초기화를 바탕으로 저 iter 학습을 결합하여 수 분 내 3DGS 산출을 보고한다. hloc(Sarlin et al., 2019)[44]은 SuperPoint·SuperGlue 계열의 learned feature와 vocabulary tree retrieval을 결합하여 exhaustive matching의 $O(N^2)$ 비용을 $O(N \log N)$ 수준으로 완화한다.
+
+상용 제품군에서는 KIRI Engine이 50~150장 입력 기준 10~15분 내외의 end-to-end 처리를 공개 제품 지표로 제시하며, 본 연구 baseline 대비 약 20~50배의 단축이 관찰된다. 다만 KIRI Engine의 내부 알고리즘·하드웨어는 공개되지 않아, 해당 수치의 해석에는 가설적 요소가 포함된다.
+
+#### 5.1.3. 격차의 원인 — 알고리즘·빌드 조합
+
+이 격차의 주 원인은 하드웨어 절대 성능이 아니라 **알고리즘과 빌드 조합**으로 판단된다. feed-forward 계열은 learned matcher로 $O(N^2)$ pair 수를 우회하고 초기화 품질을 확보하여 학습 iter 자체를 1/10 이하로 낮춘다. 즉 속도 축의 격차는 (i) CUDA 미컴파일 SIFT, (ii) $O(N^2)$ exhaustive pairing, (iii) 고정 30K iter의 누적 효과로 해석된다.
+
+하드웨어 관점의 근거로는, Apple Silicon의 peak throughput이 동급 데스크톱 GPU 대비 수십 배 열위가 아님에도 실측 재구성 시간 격차가 수십 배에 달한다는 점을 들 수 있다. 따라서 격차의 대부분은 알고리즘 계보와 빌드 옵션 조합으로 환원 가능하다는 관찰이다.
+
+#### 5.1.4. 품질 희생과 시나리오별 권고
+
+그럼에도 본 연구는 의도적으로 baseline 축에 파이프라인을 위치시킨다. 품질 축에서의 안정적 수치(PSNR·SSIM 관점)를 확보하는 것이 석사 과정 논문 단계에서 재현성과 검증 가능성을 높이는 데 유리하며, feed-forward 계열은 2024-2025년에 걸쳐 품질 측면에서 baseline 대비 **PSNR 3~6dB 수준의 희생**을 보고하는 것이 일반적이다(Fan et al., 2024[43]; Wang et al., 2024[41]).
+
+응용 시나리오별 권고는 세 갈래로 요약된다. 첫째, 전시·아카이브·정적 에셋 생산 목적은 baseline 축이 정합한다. 둘째, 모바일 스캔이나 대화형 프로토타이핑과 같이 사용자 대기 시간이 중요한 경우 feed-forward 축이 정합한다. 셋째, 본 연구의 Unity-SplatForge 시스템은 **생성 단계 산출물의 품질 일관성과 검수 가능성**이 배치·검증 단계의 신뢰성과 직결되므로 현 단계에서는 baseline 축을 채택한다. Feed-forward 경로로의 확장 가능성은 §6.2 한계와 전망에서 후속 과제로 명시한다.
+
+본 연구의 차별점은 이 trade-off 지형에서 **"baseline 품질을 확보하되 macOS 단일 기기에서 재현 가능한 경로"**를 구현한 데에 있다. KIRI Engine과 같은 상용 서비스는 품질 축에서 feed-forward로 치우친 선택을 하고, 대부분의 학술 계열 baseline은 CUDA GPU 환경을 전제한다. 본 연구는 그 교차 영역, 즉 **"CUDA-free baseline 품질"** 좌표를 점유한다는 점이 실무·교육 재현성의 관점에서 고유한 기여로 위치된다.
+
+### 5.2. 월드 모델 대비 본 연구의 입지
+
+§2.5에서 정리한 월드 모델 계열(Lyra/HY-World/Marble/Genie 3/Cosmos)은 Kong et al.[20]의 4축 중 **3D-scene-based**(Lyra·HY-World·Marble)와 **Interactive/Playable**(Genie 3), **Foundation-for-Physical-AI**(Cosmos) 세 축에서 본 연구와 인접한다. 본 절은 그 인접 관계를 결과 맥락에서 재해석하여 본 연구의 좌표를 명확히 한다.
+
+본 연구는 이 흐름 안에서 **"의미론적 배치 기반 조립"**이라는 별개의 좌표를 차지한다. 월드 모델 대부분이 **씬 전체를 통째로 생성**하는 E2E 접근을 채택하는 반면, 본 연구는 기존·생성형 3DGS 에셋을 LLM의 배치 규칙으로 **의미론적으로 조합**하고 Unity 물리엔진으로 검증한다. 표 6은 주요 축에서의 대비를 정리한다.
+
+<Table 6> *World-Model vs Unity-SplatForge 대비*
+
+| 대비 축 | 월드 모델 (Lyra/Marble/Genie 3) | Unity-SplatForge (본 연구) |
+|--------|-------------------------------|--------------------------|
+| 생성 단위 | 씬 전체 (E2E 신경망 산출) | 개별 3DGS 에셋 + LLM 배치 |
+| 품질 일관성 | 모델 파라미터 의존, 불투명 | 기존 에셋 재사용·검수 가능 |
+| 자유도 | 텍스트·이미지 조건에서 광범위 | 에셋 풀 범위 내 제한, 대신 예측 가능 |
+| 물리 정합성 | 학습된 prior (Genie 3) 또는 후처리 (Marble) | Unity 물리엔진 명시적 적용 |
+| 편집성 | 신경망 산출의 국부 수정 난이도 높음 | aras-p 툴로 splat 단위 편집 가능 |
+| 인프라 요구 | 대규모 GPU 클러스터 학습 필요 | 단일 워크스테이션 + macOS 로컬 경로 |
+| 런타임 통합 | 독자 뷰어 또는 신규 엔진 로더 | Unity 네이티브 워크플로 |
+
+이 대비에서 본 연구의 차별점은 세 가지로 요약된다. 첫째, **엔진 네이티브 통합**이다. 월드 모델은 대체로 독립 모델이거나 자체 뷰어를 제공하지만, 본 연구는 Unity 런타임에서 `HybridSceneObject`·`LayoutValidator`·`SceneComposer` 등 기존 컴포넌트를 변경 없이 활용한다. 둘째, **의미론적 배치 특화**이다. Marble·HY-World가 "방 전체를 한 번에" 생성하는 것과 달리, 본 연구는 LLM이 산출한 scene graph에 따라 개별 객체를 배치·검증하므로 에셋 재사용과 수정이 단위별로 가능하다. 셋째, **저자원 재현성**이다. Genie 3나 Cosmos가 대규모 인프라를 전제하는 반면, 본 연구는 macOS 단일 기기에서 Brush 학습과 aras-p 임포트까지 완결되는 경로를 확보한다.
+
+한편 본 연구의 제약도 명확하다. 월드 모델 대비 **생성 자유도**는 에셋 풀 범위로 한정되며, 비정형 공간이나 비일상 객체의 즉석 생성은 월드 모델 계열이 우세하다. 따라서 후속 연구에서 Lyra·HY-World의 씬 생성 결과를 본 파이프라인의 에셋 입력으로 편입하는 **하이브리드 경로**가 자연스러운 확장 방향으로 남는다.
+
+### 5.3. 하이브리드 표현의 설계적 정당화
+
+#### 5.3.1. 메시+3DGS 분리의 설계 원칙
+
+본 연구는 바닥·벽과 같은 **구조 기하**를 Unity ProBuilder 기반 메시로, 가구·소품과 같은 **객체 기하**를 3DGS 스플랫으로 분리하여 취급하는 하이브리드 표현을 채택한다. 이 설계 선택은 Paper01·Paper02에서도 유지된 바 있으며, 본 논문에서는 월드 모델 흐름과 3DGS 물리 통합의 최근 연구에 비추어 정당화를 보강한다.
+
+#### 5.3.2. Collision 근사의 정확성
+
+첫째 논점은 **collision 근사의 정확성**이다. 3DGS는 뷰 종속적 색상을 갖는 이방성 가우시안의 볼륨 집합으로 표현되며, 명시적 표면이 존재하지 않는다. 씬 전체를 단일 3DGS로 구성하는 월드 모델 계열 접근에서는 레이캐스트의 기준면이 부재하여 물리 엔진이 요구하는 정확한 collision 근사가 곤란하다.
+
+본 연구는 바닥·벽을 메시로 고정하여 레이캐스트와 네비게이션 기준면을 확보한다. 3DGS 객체는 프록시 충돌체(AABB 또는 convex hull)로 감싸 Unity PhysX 계열 물리와 정합시킨다. 이 구성은 **구조 기하의 정확성**과 **객체 외관의 실사성**을 동시에 확보하는 실용적 타협점이다.
+
+#### 5.3.3. 3DGS 네이티브 물리 연구 대비의 위치 선정
+
+둘째 논점은 **3DGS 네이티브 물리 연구 대비의 위치 선정**이다. PhysGaussian(Xie et al., 2024)[16]은 3DGS를 물질점법(MPM)과 결합하여 splat 자체가 변형·충돌하는 파이프라인을 제안하였다. PhysSplat(Zhao et al., 2025)[35]은 이 방향을 확장한다.
+
+이들은 3DGS 표현에서 직접 물리량을 풀어내는 **네이티브 경로**를 추구하며, 학술적으로는 표현의 일관성과 장기적 확장성 면에서 우위를 갖는다. 그러나 이 경로는 상용 게임 엔진의 네이티브 물리와 직접 호환되지 않으며, 대규모 씬에서의 실시간 성능은 여전히 연구 단계에 있다. 본 연구는 Unity 물리 엔진의 성숙한 런타임 성능과 디자이너 워크플로를 활용하는 **프록시 경로**를 선택하여, 실용적 배포 가능성을 우선한다. 표현 일관성은 PhysSplat·GASP 계열에 양보하되, 생태계 통합과 즉시 활용성을 본 연구의 contribution으로 명시한다.
+
+#### 5.3.4. 월드 모델의 full-3DGS 출력과의 경계
+
+셋째 논점은 **월드 모델의 full-3DGS 출력과의 경계**이다. Lyra 2.0[22]이 surface mesh를 공출력하도록 확장된 것은 "3DGS만으로 물리 정합성을 완결하기 어렵다"는 경험적 인식의 반영으로 해석 가능하다. 본 연구의 메시+3DGS 하이브리드는 이 인식과 방향을 공유한다. 다만 메시 생성을 씬 단위 신경망이 아니라 **ProBuilder 도구 + LLM 조건부 구조 정의**에 위임하여 구조 기하의 명확성과 편집성을 확보한다.
+
+결과적으로 본 연구의 하이브리드 표현은 세 제약을 동시에 해소하는 **중간 경로**로 정당화된다. (i) 월드 모델 계열의 collision 불투명성 우회. (ii) 3DGS 네이티브 물리 연구의 엔진 통합 지연 우회. (iii) 메시 기반 파이프라인의 실사성 한계 보완.
+
+## 6. 결론
+
+### 6.1. 연구 요약
 
 Unity-SplatForge는 방 하나를 자동으로 꾸며주는 도구다. 벽·바닥은 ProBuilder 메시, 가구는 3DGS, 배치 판단은 LLM, 물리 검증은 Unity 레이캐스트와 OverlapBox가 맡는다.
 
@@ -268,9 +406,9 @@ Unity-SplatForge는 방 하나를 자동으로 꾸며주는 도구다. 벽·바�
 
 작업 시간 측면에서는 손작업의 약 1/5 수준으로 줄었다. Unity Inspector를 만질 줄 모르는 기획자라도 "아늑한 침실, 침대 하나 책상 하나" 정도의 문장만 입력하면 초안 레이아웃이 나오므로, 프로토타이핑 초기에 선택지를 빠르게 훑어보는 용도로 쓸 수 있다.
 
-### 5.2. 한계와 전망
+### 6.2. 한계와 전망
 
-네 가지 한계가 남아 있다.
+다섯 가지 한계가 남아 있다.
 
 LLM의 공간 추론은 직사각형 방에서는 무난했으나, L자형 방이나 로프트 같은 복잡한 기하에서는 가구가 꺾인 벽 뒤쪽에 놓이는 등 오류가 관찰되었다. 텍스트 프롬프트만으로는 결과를 보고 고치는 반복 수정이 어렵다는 점도 걸린다. 씬을 렌더링한 스크린샷을 VLM에 넘겨 "책상이 벽에 너무 붙었다"는 피드백을 받아 재배치하는 루프를 붙이면 이 문제가 줄어들 것으로 예상한다.
 
@@ -278,7 +416,13 @@ LLM의 공간 추론은 직사각형 방에서는 무난했으나, L자형 방�
 
 확장성 문제도 있다. 현재 파이프라인은 방 하나 단위에 맞춰져 있다. 건물이나 도시 규모로 가려면 3DGS 에셋의 LOD 관리, 스트리밍 로딩, 절두체 기반 선택적 렌더링이 필수적이고, LLM의 추론 범위 역시 복수 방 이상으로 넓혀야 한다. LS-Gaussian(Wei et al., 2025) 같은 경량 스트리밍 프레임워크와의 통합이 이 방향의 출발점이 될 수 있다.
 
-마지막으로, 3DGS 학습은 여전히 CUDA 기반 NVIDIA GPU를 요구하는 반면 Unity 렌더링은 Metal이나 Vulkan으로 돌아간다. 우리 실험 환경(Apple M1 Max)에서는 렌더링은 되지만 에셋 생성은 외부 CUDA 서버에 의존해야 했다. 클라우드 GPU를 REST API로 호출하는 구조가 현실적 해법인데, 이 부분의 파이프라인 통합은 아직 구현하지 못했다.
+마지막으로, 3DGS 학습은 여전히 CUDA 기반 NVIDIA GPU를 요구하는 반면 Unity 렌더링은 Metal이나 Vulkan으로 돌아간다. 우리 실험 환경(Apple M1 Max)에서는 렌더링은 되지만 에셋 생성은 외부 CUDA 서버에 의존해야 했다. 클라우드 GPU를 REST API로 호출하는 구조가 현실적 해법인데, 이 부분의 파이프라인 통합은 아직 구현하지 못했다. 다만 §2.4.5에서 논한 Brush 기반 macOS 네이티브 학습 경로가 2026-04 PoC로 확보되었으며, 후속 연구에서는 본 한계 자체가 해소될 가능성이 크다.
+
+다섯째 한계로 sparse reconstruction 단계의 COLMAP no-CUDA 병목이 있다. 본 연구의 재구성 파이프라인 중 sparse reconstruction 단계는 COLMAP 4.0.3 homebrew 빌드를 사용한다. 해당 빌드는 `Commit Unknown on Unknown without CUDA`로 표기되어 있으며, SIFT feature 추출과 exhaustive matching 전 구간이 CPU에서 실행된다. 결과적으로 macOS M-계열 하드웨어의 Metal GPU와 ANE는 재구성 단계에서 유휴 상태로 남는다. 이 구성은 소규모 입력에서는 수용 가능하나, 본 PoC의 302장 입력과 같은 **대규모 데이터셋에서는 exhaustive matching이 주요 bottleneck**이 된다. 302장의 exhaustive pairing은 $\binom{302}{2} = 45{,}451$ 페어에 달하며, 측정된 블록당 97초를 근거로 이론 하한만 79분, 실제 완료 시간은 2~6시간 범위로 관측된다.
+
+대안 경로는 세 갈래로 구분된다. 첫째, **hloc**(Sarlin et al., 2019)[44] 기반의 learned feature + vocabulary tree retrieval로 exhaustive pairing의 $O(N^2)$ 비용을 $O(N \log N)$ 수준으로 완화하는 접근이다. 둘째, **DUSt3R**(Wang et al., 2024)[41]와 **MASt3R**(Leroy et al., 2024)[42]의 matching-free dense regression으로 sparse reconstruction 자체를 우회하는 접근이다. 셋째, **InstantSplat**(Fan et al., 2024)[43]과 같이 DUSt3R 초기화와 저 iter 학습을 결합하여 전 구간을 feed-forward 축으로 이동시키는 접근이다.
+
+다만 이들 대안은 baseline 대비 PSNR 3~6dB 열위, macOS Metal/MPS 실행 가능성 불확실(상류 대부분 CUDA 전제), 라이선스·유지 상태의 제약을 수반한다. 현 시점의 실측 검증과 본 연구 파이프라인과의 정합 평가는 §5.1의 속도-품질 trade-off 지형과 일관되게 **본 연구의 범위 밖**으로 두며, hloc·DUSt3R·MASt3R 경로의 macOS 실행 가능성과 302장 기준 동일 데이터셋 실측을 **후속 과제**로 명시한다. 본 연구의 차별점은 해당 bottleneck을 은폐하지 않고 **baseline 축의 정직한 좌표**로 기록하여 feed-forward 축과의 비교 기준점을 제공한 데에 있다.
 
 ## References
 
@@ -322,3 +466,11 @@ LLM의 공간 추론은 직사각형 방에서는 무난했으나, L자형 방�
 [38] Zemskova, T. and Yudin, D., "3DGraphLLM: Combining semantic graphs and large language models for 3D scene understanding," in Proc. ICCV, 2025.
 [39] Unity Technologies, "Unity AI Assistant 2.0: Model Context Protocol overview," Unity Documentation, 2026. [Online]. Available: https://docs.unity3d.com/Packages/com.unity.ai.assistant@2.0/manual/unity-mcp-overview.html (accessed Apr. 20, 2026).
 [40] TaaroBravo, "ai-powered-level-designer," GitHub repository, 2025. [Online]. Available: https://github.com/TaaroBravo/ai-powered-level-designer (accessed Apr. 20, 2026).
+[41] Wang, S. et al., "DUSt3R: Geometric 3D vision made easy," in Proc. CVPR, 2024. (arXiv:2312.14132)
+[42] Leroy, V. et al., "Grounding image matching in 3D with MASt3R," in Proc. ECCV, 2024. (arXiv:2406.09756)
+[43] Fan, Z. et al., "InstantSplat: Sparse-view SfM-free Gaussian splatting in seconds," arXiv:2403.20309, 2024.
+[44] Sarlin, P.-E. et al., "From coarse to fine: Robust hierarchical localization at large scale," in Proc. CVPR, 2019. (hloc; arXiv:1812.03506)
+[45] Brussee, A., "Brush: Cross-platform 3D Gaussian splatting in Rust/wgpu," GitHub repository, 2026. [Online]. Available: https://github.com/ArthurBrussee/brush (accessed Apr. 24, 2026).
+[46] Ghif, M., "splat-apple: MLX/MPS Gaussian splatting for Apple Silicon," GitHub repository, 2026. [Online]. Available: https://github.com/ghif/splat-apple (accessed Apr. 24, 2026).
+[47] Tofy, P., "OpenSplat: libtorch-based 3DGS with MPS/CUDA/ROCm backends," GitHub repository, 2025. [Online]. Available: https://github.com/pierotofy/OpenSplat (accessed Apr. 24, 2026).
+[48] Iffyloop, "gsplat-mps: MPS fork of nerfstudio/gsplat 0.1.3," GitHub repository, 2024. [Online]. Available: https://github.com/iffyloop/gsplat-mps (accessed Apr. 24, 2026).
