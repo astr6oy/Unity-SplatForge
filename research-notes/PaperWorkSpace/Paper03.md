@@ -360,19 +360,23 @@ hloc 파이프라인이 SfM 단계를 절반 시간으로 단축하면서도 등
 
 ### 4.3. 정성적 분석
 
-그림 3~5는 본 연구가 수행한 시각적 결과를 보여준다. 그림 3은 forge POC 단계에서 KIRI Engine으로 생성한 8개 3DGS 에셋을 한 화면에 그리드로 배치한 PoC 렌더이며, aras-p UnityGaussianSplatting + Metal 백엔드에서 4.36M splats가 1.49초 만에 단일 프레임으로 렌더링됨을 입증한다. 그림 4·5는 Mip-NeRF360 bonsai 데이터셋에서 Brush 30K 학습 결과의 eval 렌더로, COLMAP sparse 입력(PSNR 32.21 dB)과 hloc sparse 입력(PSNR 31.84 dB)의 시각적 품질이 ±0.5 dB 허용 범위 안에서 사실상 동등함을 보인다.
+그림 3~6은 본 연구가 수행한 시각적 결과를 보여준다. 그림 3은 KIRI Engine으로 생성한 단일 3DGS 에셋(Statue)을 aras-p UnityGaussianSplatting + Metal 백엔드에서 1프레임 렌더한 결과로, Brush 학습 모델 파일을 무수정 임포트하여 충돌체·메타데이터 래핑까지 정상 동작함을 보인다. 그림 4는 Forge POC 003 다중 자산 씬으로 ProBuilder 메시(소파)에 3DGS 에셋(Statue)을 동일 씬 안에 합성한 사례이며 HybridSceneObject 래퍼가 메시·가우시안 혼합을 처리할 수 있음을 입증한다. 그림 5·6은 Mip-NeRF360 bonsai 데이터셋(Barron et al. 2022, 표준 벤치마크 292장)을 본 연구가 직접 Brush 30K로 학습시켜 얻은 eval 렌더로, COLMAP sparse 입력(PSNR 32.21 dB)과 hloc sparse 입력(PSNR 31.84 dB)의 시각적 품질이 ±0.5 dB 허용 범위 안에서 사실상 동등함을 보인다.
 
-![그림 3. KIRI 8-splat 포트폴리오 렌더 (Forge POC, 4.36M splats, M1 Max 1.49초)](figures/forge-grid-8splat.png)
+![그림 3. Forge POC 002 — 단일 3DGS 에셋(Statue) 렌더, aras-p Metal 백엔드, 1프레임](figures/forge-statue-render.png)
 
-*그림 3. KIRI 8-splat 포트폴리오 렌더 (Forge POC, 4.36M splats, M1 Max 1.49초).*
+*그림 3. Forge POC 002 — 단일 3DGS 에셋(Statue) 렌더, aras-p Metal 백엔드 1프레임.*
 
-![그림 4. Mip-NeRF360 bonsai — Brush 30K 학습 결과 (COLMAP sparse 입력, PSNR 32.21 dB)](figures/brush-30k-bonsai-eval.png)
+![그림 4. Forge POC 003 — ProBuilder 소파 메시 + 3DGS Statue 합성 씬](figures/forge-multiscene-render.png)
 
-*그림 4. Mip-NeRF360 bonsai — Brush 30K 학습 결과 (COLMAP sparse 입력, PSNR 32.21 dB).*
+*그림 4. Forge POC 003 — ProBuilder 메시(소파) + 3DGS 에셋(Statue) 동일 씬 합성, HybridSceneObject 래퍼 동작 검증.*
 
-![그림 5. Mip-NeRF360 bonsai — Brush 30K 학습 결과 (hloc sparse 입력, PSNR 31.84 dB)](figures/brush-hloc-30k-bonsai-eval.png)
+![그림 5. Mip-NeRF360 bonsai — Brush 30K 학습 결과 (COLMAP sparse 입력, PSNR 32.21 dB)](figures/brush-30k-bonsai-eval.png)
 
-*그림 5. Mip-NeRF360 bonsai — Brush 30K 학습 결과 (hloc sparse 입력, PSNR 31.84 dB).*
+*그림 5. Mip-NeRF360 bonsai — Brush 30K 학습 결과 (COLMAP sparse 입력, PSNR 32.21 dB).*
+
+![그림 6. Mip-NeRF360 bonsai — Brush 30K 학습 결과 (hloc sparse 입력, PSNR 31.84 dB)](figures/brush-hloc-30k-bonsai-eval.png)
+
+*그림 6. Mip-NeRF360 bonsai — Brush 30K 학습 결과 (hloc sparse 입력, PSNR 31.84 dB).*
 
 시각적으로는 3DGS 에셋이 메시 에셋보다 표면 질감이 풍부했으나, 시점에 따라 가우시안 분포 경계가 드러나는 아티팩트가 간헐적으로 관찰되었다. ProBuilder 벽·바닥의 매끈한 면과 3DGS 사물의 유기적 질감 사이에 시각적 이질감이 있긴 했지만, 프로토타이핑 용도에서 그것이 결정적 문제가 되지는 않았다.
 
