@@ -229,6 +229,22 @@ Unity-SplatForge는 Unity C# 클라이언트와 Python FastAPI 서버로 나뉜�
 
 동작 흐름은 네 단계다. 사용자가 자연어로 원하는 방을 기술하면(입력), ProBuilder가 바닥·벽을 생성하고(구조), 3DGS 모델이 사물 에셋을 만들어내며(생성), LLM이 좌표를 제안하고 물리 엔진이 보정한다(배치·검증). 각 단계를 아래에서 풀어 설명한다.
 
+그림 1은 위 4단계의 데이터 흐름을 나타낸다. (Mermaid 소스. 출판 단계에서 LaTeX/TikZ 또는 PDF 이미지로 대체 가능.)
+
+```mermaid
+flowchart LR
+    A[자연어 입력] --> B[LLM<br/>GPT-4 / Claude]
+    B --> C{좌표 JSON}
+    C --> D[LayoutValidator<br/>Raycast + OverlapBox]
+    D --> E[ProBuilder<br/>벽·바닥]
+    D --> F[3DGS Asset<br/>Brush / 외부 생성기]
+    E --> G[HybridSceneObject<br/>Renderer + Collider]
+    F --> G
+    G --> H[Unity Scene]
+```
+
+*그림 1. Unity-SplatForge 전체 파이프라인 데이터 흐름.*
+
 ### 3.2. 규칙 기반 공간 뼈대
 
 바닥과 벽은 3DGS가 아니라 ProBuilder 메시로 만든다. 이유는 두 가지인데, 하나는 바닥·벽이 충돌 판정의 기준면으로 기능해야 한다는 것이고, 다른 하나는 LLM에 배치 가능 영역을 숫자로 전달하려면 공간 경계가 수치적으로 정의되어야 한다는 것이다. 가우시안 분포의 확률적 표현으로는 이 두 요구를 충족할 수 없다.
@@ -252,6 +268,25 @@ Unity-SplatForge는 Unity C# 클라이언트와 Python FastAPI 서버로 나뉜�
 물리 검증: Unity 쪽의 LayoutValidator가 두 종류의 검사를 수행한다. 바닥 접촉 검사에서는 제안 좌표의 위쪽 20m 지점에서 하방으로 50m짜리 레이캐스트를 쏜다. Ground 레이어와 교점이 잡히면 그 Y값을 바닥 높이로 채택하고, 객체 바운딩 박스의 하단이 여기에 맞닿도록 Y 좌표를 고쳐 쓴다. 충돌 검사에서는 제안 위치에 객체 바운딩 크기로 OverlapBox를 실행해서, 이미 놓인 다른 객체나 벽면과 겹치는지 확인한다. 겹침이 발견되면 해당 배치를 기각한다.
 
 보정: 바닥 안착은 레이캐스트 결과를 바로 적용하므로 자동이다. 충돌 회피는 현재 기각 방식인데, 추후 충돌 정보를 LLM에 되먹여서 대안 좌표를 요청하는 반복 루프로 확장할 여지를 남겨 두었다.
+
+그림 2는 LayoutValidator의 검증 흐름을 단계별로 나타낸다.
+
+```mermaid
+flowchart TD
+    Start[LLM 좌표 후보] --> Ray[Raycast 하방 50m]
+    Ray -->|Ground 교점 hit| Snap[Y 좌표 → 바닥 높이로 보정]
+    Ray -->|miss| Reject1[기각: 바닥 바운드 외]
+    Snap --> Overlap[OverlapBox 검사]
+    Overlap -->|충돌 없음| Place[배치 확정<br/>SceneObjectRegistry 등록]
+    Overlap -->|충돌 발견| Reject2[기각<br/>향후: LLM 재호출 루프]
+    Place --> NextObj[다음 객체]
+    Reject1 --> NextObj
+    Reject2 --> NextObj
+    NextObj -->|남은 객체 있음| Ray
+    NextObj -->|모두 처리| Done[배치 완료]
+```
+
+*그림 2. LayoutValidator의 Raycast → Snap → OverlapBox 검증 루프.*
 
 ### 3.5. 게임 로직 연동
 
