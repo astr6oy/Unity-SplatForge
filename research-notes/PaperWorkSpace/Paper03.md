@@ -59,15 +59,19 @@ Paper03.md — 2026-04-21 생성, 2026-04-21 최종 갱신
 
 파이프라인은 두 단계로 움직인다. 먼저 LLM(GPT-4 또는 Claude)이 "침대 옆에 협탁을 놓아라" 같은 한국어·영어 프롬프트를 읽고 x·y·z 좌표를 JSON으로 출력한다. 그 다음 Unity 쪽 LayoutValidator가 레이캐스트로 바닥 높이를 잡고 OverlapBox로 겹침을 걸러낸다. 벽과 바닥은 ProBuilder 메시로, 가구는 3DGS 생성 모델로 만들어 HybridSceneObject라는 래퍼에 담는다.
 
-침실·사무실·거실 세 가지 방에 적용해 본 결과, 손작업 대비 작업 시간이 약 4/5가량 단축되었다. 물리 보정 전에는 열 개 중 네 개꼴로 가구가 바닥에 안 닿았으나, 보정 후에는 미안착이 10개 중 1개 이하로 줄었다. LLM 없이 무작위로 놓고 물리 보정만 돌리면 충돌은 0이지만 침대 옆에 협탁이 오지 않는 식으로 Semantic Proximity가 0.31까지 떨어져, 의미론적 추론 없이는 쓸 만한 방이 나오지 않음을 확인하였다. 이러한 결과는 월드 모델이 내놓는 대형 장면 생성과, 게임 엔진에서의 세밀한 실체화·상호작용 사이를 잇는 중간 파이프라인이 독립적으로 필요함을 시사한다.
+침실·사무실·거실 세 가지 방에 적용해 본 결과, 손작업 대비 작업 시간이 약 4/5가량 단축되었다. 물리 보정 전에는 열 개 중 네 개꼴로 가구가 바닥에 안 닿았으나, 보정 후에는 미안착이 10개 중 1개 이하로 줄었다. LLM 없이 무작위로 놓고 물리 보정만 돌리면 충돌은 0이지만 침대 옆에 협탁이 오지 않는 식으로 Semantic Proximity가 0.31까지 떨어져, 의미론적 추론 없이는 쓸 만한 방이 나오지 않음을 확인하였다.
 
-중심어: 3DGS, LLM, 가구 배치 자동화, Unity, 하이브리드 저작
+본 연구는 추가로 macOS Apple Silicon 단일 기기에서 학습-임포트-렌더 전 구간 완결이 가능함을 PoC로 입증하였다. Brush(Rust+wgpu Metal, Apache-2.0) 기반 30K iter 학습이 Mip-NeRF360 bonsai에서 PSNR 32.21 dB(원 3DGS 32.4 dB와 0.19 dB 차)를 기록하였고, hloc + LightGlue로 SfM 단계를 1시간 46분에서 51분 6초로 2.07× 단축(종합 wall-clock 1.44× 절감)하면서 PSNR은 ±0.5 dB 허용 범위 내(31.84 dB)로 유지된다. 이로써 CUDA 없는 baseline 품질 경로가 macOS 단일 기기에서 재현 가능함을 실측 입증한다.
+
+본 연구의 좌표를 Kong et al.(2025) 월드 모델 4축 분류(Video / 3D-scene / Interactive / Physical AI)에 비추면, 본 연구는 **3D-scene-based** 축에 인접하면서도 "씬 단위 생성" 대신 "객체 단위 의미론적 배치"를 채택한 별개의 좌표를 점유한다. 즉 월드 모델이 내놓는 대형 장면 생성과 게임 엔진에서의 세밀한 실체화·상호작용 사이를 잇는 중간 파이프라인이 독립적으로 필요함을 시사하며, 본 시스템은 그 중간 층위를 macOS 단일 기기에서 재현 가능한 경로로 구현한다.
+
+중심어: 3DGS, LLM, 가구 배치 자동화, Unity, 하이브리드 저작, Brush, hloc, macOS Apple Silicon, 월드 모델
 
 ## Abstract
 
-Manually placing furniture in a game-engine scene is tedious and slow, especially during iterative prototyping. Unity-SplatForge automates this in two passes: an LLM (GPT-4 or Claude) reads a free-text room description and emits per-object coordinates as JSON; then a Unity-side validator fires downward raycasts to snap each piece to the floor and runs OverlapBox checks to reject collisions. Walls and floors are ProBuilder meshes; furniture comes from 3DGS generators wrapped in a HybridSceneObject that pairs a GaussianSplatRenderer with a proxy collider. In three room types the tool trimmed hands-on time by roughly four-fifths. Before physics correction about four in ten objects floated or clipped through the floor; afterward fewer than one in ten did. Replacing the LLM with uniform-random placement while keeping the same physics pass drove Semantic Proximity down to 0.31—beds no longer ended up next to nightstands—showing that the two layers cannot substitute for each other.
+Manually placing furniture in a game-engine scene is tedious and slow, especially during iterative prototyping. Unity-SplatForge automates this in two passes: an LLM (GPT-4 or Claude) reads a free-text room description and emits per-object coordinates as JSON; then a Unity-side validator fires downward raycasts to snap each piece to the floor and runs OverlapBox checks to reject collisions. Walls and floors are ProBuilder meshes; furniture comes from 3DGS generators wrapped in a HybridSceneObject that pairs a GaussianSplatRenderer with a proxy collider. In three room types the tool trimmed hands-on time by roughly four-fifths. Before physics correction about four in ten objects floated or clipped through the floor; afterward fewer than one in ten did. Replacing the LLM with uniform-random placement while keeping the same physics pass drove Semantic Proximity down to 0.31—beds no longer ended up next to nightstands—showing that the two layers cannot substitute for each other. We additionally demonstrate a CUDA-free single-machine reconstruction path on macOS Apple Silicon: Brush (Rust+wgpu Metal, Apache-2.0) reaches 32.21 dB PSNR on Mip-NeRF360 bonsai at 30K iterations (within 0.19 dB of the original 3DGS benchmark), and replacing COLMAP exhaustive matching with hloc + LightGlue cuts the SfM stage from 106:04 to 51:06 (2.07×), reducing total wall-clock by 1.44× while keeping PSNR within ±0.5 dB. Relative to the Kong et al. (2025) four-fold taxonomy of world models (Video / 3D-scene / Interactive / Physical AI), Unity-SplatForge sits adjacent to the **3D-scene-based** axis but occupies a distinct coordinate by replacing whole-scene generation with object-level semantic placement, providing the missing intermediate layer between large-scale world-model scene synthesis and engine-native physical embodiment.
 
-Keywords: 3DGS, LLM, furniture layout automation, Unity, hybrid authoring
+Keywords: 3DGS, LLM, furniture layout automation, Unity, hybrid authoring, Brush, hloc, macOS Apple Silicon, world models
 
 ## 1. 서론
 
