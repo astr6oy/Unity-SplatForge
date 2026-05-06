@@ -263,6 +263,16 @@ flowchart LR
 
 3DGS 에셋 학습 파이프라인은 두 경로를 갖는다. 하나는 nerfstudio·gsplat 계열의 CUDA 학습기를 Windows 환경에서 운영하는 초기 계획이고, 다른 하나는 Brush[45](ArthurBrussee, Rust·wgpu, Apache-2.0 라이선스)를 macOS에서 직접 실행하는 최근 경로다. Brush는 COLMAP 또는 Nerfstudio 포맷 입력을 받아 Metal·Vulkan·D3D12 등 wgpu 백엔드 위에서 학습을 수행하므로 CUDA 의존 없이 Apple Silicon 기기에서도 전체 파이프라인이 완결된다. 본 연구는 이 경로의 실현 가능성을 2026년 4월 내부 PoC로 확증하였으며, 학습·임포트·렌더의 전 구간이 단일 기기에서 오류 없이 동작함을 확인하였다. 결과 PLY는 aras-p[12] UnityGaussianSplatting이 요구하는 필수 속성(x·y·z 좌표, scale_0-2, opacity, rot_0-3, f_dc_0-2, f_rest)을 모두 만족하며, GaussianSplatAsset 변환 후 런타임 렌더까지 무수정으로 통과하였다.
 
+선행 연구(Kim & Lee 2025[56], paper02-04)에서 본 연구진은 KIRI Engine 클라우드 SaaS로 생성한 3DGS 에셋을 동일 aras-p UnityGaussianSplatting 파이프라인 위에서 검증한 바 있으며, 그림 3은 단일 디지털 조형물(Statue) 에셋의 KIRI Engine 출력 렌더, 그림 4는 동일 자료실에서 3DGS 자전거·더미와 폴리곤 메시 의자를 한 씬에 합성한 하이브리드 렌더이다. 이 선행 사례는 본 연구의 HybridSceneObject 설계가 외부 SaaS 산출 자산까지 동일하게 수용하도록 설계된 배경을 제공한다.
+
+![그림 3. 선행 연구(paper02-04, Kim & Lee 2025) — KIRI Engine 출력 단일 3DGS 에셋(Statue) 렌더](figures/kiri-statue-prior-paper02-04.png)
+
+*그림 3. 선행 연구(paper02-04, Kim & Lee 2025[56]) — KIRI Engine 출력 단일 3DGS 에셋(Statue) 렌더.*
+
+![그림 4. 선행 연구(paper02-04) — 3DGS 자전거·더미 + 메시 의자 하이브리드 합성 씬](figures/kiri-with-mesh-prior-paper02-04.png)
+
+*그림 4. 선행 연구(paper02-04, Kim & Lee 2025[56]) — KIRI Engine 출력 3DGS 자산(자전거·더미)과 폴리곤 메시(의자)의 하이브리드 합성 씬, 본 연구 HybridSceneObject 설계의 prior work demonstrator.*
+
 ### 3.4. 의미론적 배치와 물리 검증
 
 이 파이프라인에서 가장 핵심적인 부분이다. 크게 세 단계로 나뉜다.
@@ -360,15 +370,7 @@ hloc 파이프라인이 SfM 단계를 절반 시간으로 단축하면서도 등
 
 ### 4.3. 정성적 분석
 
-그림 3~6은 본 연구가 수행한 시각적 결과를 보여준다. 그림 3은 KIRI Engine으로 생성한 단일 3DGS 에셋(Statue)을 aras-p UnityGaussianSplatting + Metal 백엔드에서 1프레임 렌더한 결과로, Brush 학습 모델 파일을 무수정 임포트하여 충돌체·메타데이터 래핑까지 정상 동작함을 보인다. 그림 4는 Forge POC 003 다중 자산 씬으로 ProBuilder 메시(소파)에 3DGS 에셋(Statue)을 동일 씬 안에 합성한 사례이며 HybridSceneObject 래퍼가 메시·가우시안 혼합을 처리할 수 있음을 입증한다. 그림 5·6은 Mip-NeRF360 bonsai 데이터셋(Barron et al. 2022, 표준 벤치마크 292장)을 본 연구가 직접 Brush 30K로 학습시켜 얻은 eval 렌더로, COLMAP sparse 입력(PSNR 32.21 dB)과 hloc sparse 입력(PSNR 31.84 dB)의 시각적 품질이 ±0.5 dB 허용 범위 안에서 사실상 동등함을 보인다.
-
-![그림 3. Forge POC 002 — 단일 3DGS 에셋(Statue) 렌더, aras-p Metal 백엔드, 1프레임](figures/forge-statue-render.png)
-
-*그림 3. Forge POC 002 — 단일 3DGS 에셋(Statue) 렌더, aras-p Metal 백엔드 1프레임.*
-
-![그림 4. Forge POC 003 — ProBuilder 소파 메시 + 3DGS Statue 합성 씬](figures/forge-multiscene-render.png)
-
-*그림 4. Forge POC 003 — ProBuilder 메시(소파) + 3DGS 에셋(Statue) 동일 씬 합성, HybridSceneObject 래퍼 동작 검증.*
+그림 5·6은 본 연구가 §4.4 파이프라인 측정에서 수행한 Brush 30K 학습의 시각적 결과를 보여준다. 입력 데이터셋은 Mip-NeRF360 bonsai(Barron et al. 2022, 표준 벤치마크 292장)이며, 본 연구진이 macOS Apple Silicon 기기에서 직접 학습시켜 얻은 eval 렌더이다. 그림 5는 COLMAP sparse 입력(PSNR 32.21 dB), 그림 6은 hloc sparse 입력(PSNR 31.84 dB)의 결과로, 두 SfM 경로의 시각적 품질이 ±0.5 dB 허용 범위 안에서 사실상 동등함을 보인다. 선행 연구(paper02-04)의 KIRI Engine 출력 사례는 §3.3 그림 3·4를 참조하며, 본 §4.3은 신규 측정 결과만 다룬다.
 
 ![그림 5. Mip-NeRF360 bonsai — Brush 30K 학습 결과 (COLMAP sparse 입력, PSNR 32.21 dB)](figures/brush-30k-bonsai-eval.png)
 
@@ -623,3 +625,5 @@ LLM의 공간 추론은 직사각형 방에서는 무난했으나, L자형 방�
 [53] Sarlin, P.-E. et al., "From Coarse to Fine: Robust Hierarchical Localization at Large Scale," in Proc. CVPR, 2019. arXiv:1812.03506. (hloc)
 [54] Lindenberger, P. et al., "LightGlue: Local Feature Matching at Light Speed," in Proc. ICCV, 2023.
 [55] DeTone, D., Malisiewicz, T., and Rabinovich, A., "SuperPoint: Self-Supervised Interest Point Detection and Description," in Proc. CVPR Workshops, pp. 224-236, 2018. (arXiv:1712.07629)
+
+[56] Kim, J. and Lee, D., "3D Gaussian Splatting 기법을 활용한 디지털 조형물 제작 연구 [A study on digital sculpture production using 3D Gaussian splatting technique]," 경북대학교 게임공학 석사학위논문 후속 연구, 2025-10. (paper02-04, KIRI Engine + UnityGaussianSplatting 워크플로우, 174-205 FPS / 43분 디지털화)
