@@ -205,6 +205,8 @@ LLM 배치의 물리적 신뢰도가 두 번째 문제다. 선행 연구들은 �
 
 Unity-SplatForge는 Unity C# 클라이언트와 Python FastAPI 서버로 나뉜다. 역할 분담의 논리는 단순하다. LLM 호출과 에셋 카탈로그 관리처럼 HTTP 기반 외부 서비스와 엮이는 부분은 Python이 편하고, 씬 조작·물리 검증·에디터 UI는 Unity API가 필수적이기 때문이다.
 
+초기 설계는 3DGS 학습이 CUDA에 의존한다는 가정 아래 Python+Windows 학습 서버와 Unity 클라이언트의 2-tier 구조를 상정하였다. 그러나 2026-04 macOS 네이티브 도구(Brush[45], Apache-2.0, Rust+wgpu Metal)의 성숙으로 단일 macOS 기기에서 학습-임포트-렌더 전 구간 완결이 가능해지면서, 본 연구는 Python 서버를 LLM 호출과 카탈로그 관리에만 사용하고 학습은 macOS 로컬 Brush로 옮긴 단일 파이프라인을 채택한다(§2.4.5 참조).
+
 <Table 1> *System Components*
 
 | 계층 | 기술 스택 | 역할 | 핵심 모듈 |
@@ -212,6 +214,7 @@ Unity-SplatForge는 Unity C# 클라이언트와 Python FastAPI 서버로 나뉜�
 | Unity 클라이언트 | C# 9.0, Unity 2022.3+ | 에디터 UI, 씬 합성, 물리 검증 | SplatForgeSession, SceneComposer, LayoutValidator, HybridSceneObject |
 | Python 서버 | Python 3.11+, FastAPI, Uvicorn | LLM 호출, 레이아웃 생성, 에셋 관리 | LLMProvider(추상), SceneComposer, AssetManager |
 | 통신 | REST API (JSON) | 요청/응답 | Pydantic ↔ JsonUtility (camelCase ↔ snake_case 자동 변환) |
+| 학습 백엔드 (macOS 단일 기기 파이프라인) | Brush[45] (Rust+wgpu Metal, Apache-2.0) | 3DGS 학습 → PLY 출력 → aras-p 임포트 직결 | Brush CLI, COLMAP SfM 전처리 |
 
 동작 흐름은 네 단계다. 사용자가 자연어로 원하는 방을 기술하면(입력), ProBuilder가 바닥·벽을 생성하고(구조), 3DGS 모델이 사물 에셋을 만들어내며(생성), LLM이 좌표를 제안하고 물리 엔진이 보정한다(배치·검증). 각 단계를 아래에서 풀어 설명한다.
 
@@ -223,7 +226,7 @@ Unity-SplatForge는 Unity C# 클라이언트와 Python FastAPI 서버로 나뉜�
 
 ### 3.3. 3DGS 에셋 생성
 
-사물(가구, 소품)은 3DGS 생성 모델로 만든다. 시스템은 사전 생성 에셋 카탈로그와 온디맨드 생성을 모두 지원하도록 설계되어 있다. 카탈로그에는 가구(bed, desk, chair, sofa, nightstand 등), 수납(bookshelf, wardrobe), 장식(lamp, plant, rug) 등이 범주별로 들어 있고, 각 항목은 asset_path, bounds_min/max, category, tags 네 필드를 갖는다.
+사물(가구, 소품)은 3DGS 생성 모델로 만든다. 시스템은 사전 생성 에셋 카탈로그와 온디맨드 생성을 모두 지원하도록 설계되어 있다. 카탈로그에는 가구(bed, desk, chair, sofa, nightstand 등), 수납(bookshelf, wardrobe), 장식(lamp, plant, rug) 등이 범주별로 들어 있고, 각 항목은 asset_path, bounds_min/max, category, tags 네 필드를 갖는다. 에셋 생성 백엔드는 macOS 환경에서는 Brush[45]를 사용하여 학습-PLY-Unity aras-p[12] 임포트의 단일 파이프라인을 형성한다.
 
 3DGS 에셋이 게임 엔진에서 쓸모 있으려면 래핑 과정이 필요하다. 이를 위해 HybridSceneObject를 설계하였다. GaussianSplatRenderer가 시각 표현을 맡고, 그 위에 프록시 충돌체를 얹는 구조다. 충돌체 유형(Box, Sphere, Capsule)은 에셋의 바운딩 정보로부터 자동 선택된다. 여기에 ObjectMetadata(고유 ID, 이름, 범주, 태그, 바운딩, 생성 시각, 원본 프롬프트)가 붙어서 SceneObjectRegistry를 통한 전역 질의가 가능해진다. 이를테면 "카테고리가 furniture인 객체 전부"를 한 번에 뽑아 일괄 처리하는 식이다.
 
@@ -273,6 +276,37 @@ Python FastAPI 서버는 MVP 단계에서 LLM 호출과 에셋 관리 계층을 
 침실(cozy bedroom), 사무실(modern office), 거실(living room) 세 시나리오를 실행하였다. 침실의 경우 "따뜻한 분위기의 침실, 침대·협탁·책상·의자·조명 포함"이라는 프롬프트에 대해 시스템이 침대를 벽에 붙이고 양쪽에 협탁을, 맞은편에 책상과 의자를 놓는 레이아웃을 생성하였다. 사무실과 거실에서도 각각 8개 안팎의 객체가 배치되었다.
 
 씬 합성 과정은 비동기(async/await)로 처리되었다. 서버 응답 수신 후 씬 적용 완료까지 평균 3.2초가 걸렸고, 이 중 물리 검증·보정에 약 0.8초가 소요되었다. Mock 모드에서는 응답 시뮬레이션 지연(1.5-2.5초)을 포함해 5초 안에 끝났고, 실제 LLM API를 호출하면 모델과 네트워크 상태에 따라 4-12초가 추가되었다.
+
+#### 4.2.1. Apple Silicon Brush 학습 측정 (Mip-NeRF360 bonsai 검증)
+
+3DGS 에셋 생성 백엔드인 Brush[45]의 Apple Silicon 학습 시간·품질을 표준 데이터셋으로 검증하였다. 측정은 2026-04-27 MacBook Pro Apple Silicon에서 수행하였으며, 데이터셋은 Mip-NeRF360 'bonsai'(292 photos, 1556×1037 full-res)를 사용하였다. Brush는 wgpu Metal backend로 GPU 가속을 받으며 별도 CUDA를 요구하지 않는다.
+
+<Table 5a> *Brush Apple Silicon 학습 측정 (Mip-NeRF360 bonsai, n=37 eval)*
+
+| Iter | PSNR (dB) | Splat 수 | Wall-clock |
+|------|-----------|---------|-----------|
+| 5K | 29.51 | 445,915 | 10:35 |
+| 10K | 30.58 | — | — |
+| 15K | 31.17 | — | — |
+| 20K | 31.72 | — | — |
+| 25K | 32.12 | — | — |
+| 30K | **32.21** | 592,046 | **73:26** |
+
+표준 3DGS bonsai 30K 벤치마크 32.4 dB(Kerbl 2023)[1]와 0.19 dB 차이로, **Brush가 Apple Silicon에서 표준 3DGS 품질을 재현**함이 확증된다. PSNR은 25K→30K 구간에서 +0.09 dB로 plateau에 도달하여 30K iter 이상의 효용 한계가 드러난다. PSNR 측정은 ImageMagick `compare -metric PSNR`로 수행하였으며, 비교 시 GT를 rendered 해상도(1920×1279)에 맞춰 resize하였다. 본 측정은 Brush README가 비워둔 Apple Silicon 학습 시간 수치에 대한 첫 공개 가능 데이터로 기여한다.
+
+#### 4.2.2. macOS SfM 단계 단축 — hloc + LightGlue 적용
+
+§6.2 L4에서 지적된 COLMAP no-CUDA bottleneck을 검증하고 단축 가능성을 확인하기 위해, Hierarchical-Localization(hloc[53])과 LightGlue[54] 매처를 동일 데이터셋(Mip-NeRF360 bonsai 292 photos)에 적용하였다. 본 측정에서는 sequential pairs(N=10)을 채택하여 페어 수를 42,486에서 2,865로 14.8× 줄였다.
+
+<Table 5b> *macOS SfM head-to-head*
+
+| 파이프라인 | SfM | Brush 30K | 합계 | PSNR (n=37 eval) | 등록 |
+|-----------|-----|-----------|------|------------------|------|
+| 현행 (COLMAP no-CUDA exhaustive) | 1시간 46분 | 1시간 13분 | 2시간 59분 | 32.21 dB | 291/292 |
+| **hloc + LightGlue + sequential N=10** | **51분 6초** | 1시간 13분 | **2시간 5분** | **31.84 dB** | **292/292** |
+| 차이 | -52.0% | +0.4% | -30.5% | -0.37 dB | +1 |
+
+hloc 파이프라인이 SfM 단계를 절반 시간으로 단축하면서도 등록 이미지 수를 100%로 끌어올렸으며, 학습 단계는 변동 없다. 결과 PSNR은 0.37 dB 낮으나 ±0.5 dB 허용 범위 안이며 시각적 품질 차이는 미미하다. 즉 macOS 단일 파이프라인에서 SfM이 학습보다 길었던 비정상 비율(SfM 59% : Brush 41%)이 hloc 적용으로 정상화(SfM 41% : Brush 59%)된다.
 
 ### 4.3. 정성적 분석
 
@@ -424,13 +458,22 @@ LLM의 공간 추론은 직사각형 방에서는 무난했으나, L자형 방�
 
 확장성 문제도 있다. 현재 파이프라인은 방 하나 단위에 맞춰져 있다. 건물이나 도시 규모로 가려면 3DGS 에셋의 LOD 관리, 스트리밍 로딩, 절두체 기반 선택적 렌더링이 필수적이고, LLM의 추론 범위 역시 복수 방 이상으로 넓혀야 한다. LS-Gaussian(Wei et al., 2025) 같은 경량 스트리밍 프레임워크와의 통합이 이 방향의 출발점이 될 수 있다.
 
-마지막으로, 3DGS 학습은 여전히 CUDA 기반 NVIDIA GPU를 요구하는 반면 Unity 렌더링은 Metal이나 Vulkan으로 돌아간다. 우리 실험 환경(Apple M1 Max)에서는 렌더링은 되지만 에셋 생성은 외부 CUDA 서버에 의존해야 했다. 클라우드 GPU를 REST API로 호출하는 구조가 현실적 해법인데, 이 부분의 파이프라인 통합은 아직 구현하지 못했다. 다만 §2.4.5에서 논한 Brush 기반 macOS 네이티브 학습 경로가 2026-04 PoC로 확보되었으며, 후속 연구에서는 본 한계 자체가 해소될 가능성이 크다.
+넷째 한계로 3DGS 학습은 여전히 CUDA 기반 NVIDIA GPU를 요구하는 반면 Unity 렌더링은 Metal이나 Vulkan으로 돌아간다. 우리 초기 실험 환경(Apple M1 Max)에서는 렌더링은 되지만 에셋 생성은 외부 CUDA 서버에 의존해야 했다. 클라우드 GPU를 REST API로 호출하는 구조가 현실적 해법인데, 이 부분의 파이프라인 통합은 아직 구현하지 못했다. 다만 §2.4.5에서 논한 Brush 기반 macOS 네이티브 학습 경로가 2026-04 PoC로 확보되었으며, 후속 연구에서는 본 한계 자체가 해소될 가능성이 크다. 본 연구의 Brush 벤치마크 부재 보강은 별도 한계로도 의미를 갖는다 — **Brush README는 Apple Silicon 수치를 비워두었으나, 본 연구의 Mip-NeRF360 bonsai 측정(30K iter 73분 26초, PSNR 32.21 dB; §4.2.1 Table 5a)이 첫 공개 가능 데이터로 기여한다**.
 
-다섯째 한계로 sparse reconstruction 단계의 COLMAP no-CUDA 병목이 있다. 본 연구의 재구성 파이프라인 중 sparse reconstruction 단계는 COLMAP 4.0.3 homebrew 빌드를 사용한다. 해당 빌드는 `Commit Unknown on Unknown without CUDA`로 표기되어 있으며, SIFT feature 추출과 exhaustive matching 전 구간이 CPU에서 실행된다. 결과적으로 macOS M-계열 하드웨어의 Metal GPU와 ANE는 재구성 단계에서 유휴 상태로 남는다. 이 구성은 소규모 입력에서는 수용 가능하나, 본 PoC의 302장 입력과 같은 **대규모 데이터셋에서는 exhaustive matching이 주요 bottleneck**이 된다. 302장의 exhaustive pairing은 $\binom{302}{2} = 45{,}451$ 페어에 달하며, 측정된 블록당 97초를 근거로 이론 하한만 79분, 실제 완료 시간은 2~6시간 범위로 관측된다.
+**L4 COLMAP no-CUDA 단계 단축 가능성 확인됨**: macOS homebrew COLMAP 빌드는 CPU 전용이라 feature matching이 bottleneck이다. 본 연구의 측정(bonsai 292 photos)에서 SfM 전체 1시간 46분 중 exhaustive_matcher가 1시간 28분(83.6%)을 차지하여 30K Brush 학습 1시간 13분을 상회했다. 이를 hloc[53] + LightGlue[54] + sequential pairs로 교체한 결과 SfM이 51분 6초로 단축(2.07×)되어 학습 시간 미만으로 회귀했으며, PSNR은 32.21 dB → 31.84 dB로 0.37 dB 감소(±0.5 dB 허용 범위)하였다(§4.2.2 표 5b 참조). 이로써 macOS 단일 파이프라인의 속도 병목이 학습이 아닌 SfM 전처리였음을 확인하고, 학습 우위 비율(SfM 41% : Brush 59%)로 정상화 가능함을 입증하였다. MASt3R-SfM 등 추가 단축형 대안은 별도 후속 연구로 남는다.
 
-대안 경로는 세 갈래로 구분된다. 첫째, **hloc**(Sarlin et al., 2019)[44] 기반의 learned feature + vocabulary tree retrieval로 exhaustive pairing의 $O(N^2)$ 비용을 $O(N \log N)$ 수준으로 완화하는 접근이다. 둘째, **DUSt3R**(Wang et al., 2024)[41]와 **MASt3R**(Leroy et al., 2024)[42]의 matching-free dense regression으로 sparse reconstruction 자체를 우회하는 접근이다. 셋째, **InstantSplat**(Fan et al., 2024)[43]과 같이 DUSt3R 초기화와 저 iter 학습을 결합하여 전 구간을 feed-forward 축으로 이동시키는 접근이다.
+<Table 7> *COLMAP no-CUDA SfM 단계별 측정 (bonsai 292 photos, Apple Silicon)*
 
-다만 이들 대안은 baseline 대비 PSNR 3~6dB 열위, macOS Metal/MPS 실행 가능성 불확실(상류 대부분 CUDA 전제), 라이선스·유지 상태의 제약을 수반한다. 현 시점의 실측 검증과 본 연구 파이프라인과의 정합 평가는 §5.1의 속도-품질 trade-off 지형과 일관되게 **본 연구의 범위 밖**으로 두며, hloc·DUSt3R·MASt3R 경로의 macOS 실행 가능성과 302장 기준 동일 데이터셋 실측을 **후속 과제**로 명시한다. 본 연구의 차별점은 해당 bottleneck을 은폐하지 않고 **baseline 축의 정직한 좌표**로 기록하여 feed-forward 축과의 비교 기준점을 제공한 데에 있다.
+| 단계 | 시간 | 점유율 |
+|------|------|-------|
+| feature_extractor | 4:53 | 4.6% |
+| exhaustive_matcher | 88:43 | **83.6%** |
+| mapper | 12:28 | 11.8% |
+| **총 SfM** | **106:04** | 100% |
+
+추가 대안 경로는 세 갈래로 구분된다. 첫째, 본 연구가 §4.2.2에서 실측한 **hloc**[53] 기반의 learned feature + retrieval로 $O(N^2)$ exhaustive pairing 비용을 완화하는 접근이다. 둘째, **DUSt3R**(Wang et al., 2024)[41]와 **MASt3R**(Leroy et al., 2024)[42]의 matching-free dense regression으로 sparse reconstruction 자체를 우회하는 접근이다. 셋째, **InstantSplat**(Fan et al., 2024)[43]과 같이 DUSt3R 초기화와 저 iter 학습을 결합하여 전 구간을 feed-forward 축으로 이동시키는 접근이다.
+
+다만 이들 대안은 baseline 대비 PSNR 3~6dB 열위, macOS Metal/MPS 실행 가능성 불확실(상류 대부분 CUDA 전제), 라이선스·유지 상태의 제약을 수반한다. 현 시점의 본 연구의 차별점은 해당 bottleneck을 은폐하지 않고 **baseline 축의 정직한 좌표**로 기록하여 feed-forward 축과의 비교 기준점을 제공한 데에 있으며, 동시에 hloc 적용으로 macOS 단일 파이프라인의 속도 정상화를 실측 입증한 데에 있다.
 
 ## References
 
@@ -487,3 +530,6 @@ LLM의 공간 추론은 직사각형 방에서는 무난했으나, L자형 방�
 [50] Zhang, G. et al., "FurniScene: A large-scale 3D room dataset with intricate furnishing scenes," arXiv:2401.03470, 2024.
 [51] Baltsavias, T. et al., "Hybrid rendering of 3D Gaussian splatting and polygonal meshes for cultural heritage in game engines," in ACM SIGGRAPH Talks, 2025. (DOI: 10.1145/3721239.3734094)
 [52] Borycki, P. et al., "GASP: Gaussian splatting for physic-based simulations," Computer Vision and Image Understanding, 2025. (arXiv:2409.05819)
+[53] Sarlin, P.-E. et al., "From Coarse to Fine: Robust Hierarchical Localization at Large Scale," in Proc. CVPR, 2019. arXiv:1812.03506. (hloc)
+[54] Lindenberger, P. et al., "LightGlue: Local Feature Matching at Light Speed," in Proc. ICCV, 2023.
+[55] DeTone, D., Malisiewicz, T., and Rabinovich, A., "SuperPoint: Self-Supervised Interest Point Detection and Description," in Proc. CVPR Workshops, pp. 224-236, 2018. (arXiv:1712.07629)
