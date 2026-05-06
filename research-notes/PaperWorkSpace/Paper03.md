@@ -360,6 +360,20 @@ hloc 파이프라인이 SfM 단계를 절반 시간으로 단축하면서도 등
 
 ### 4.3. 정성적 분석
 
+그림 3~5는 본 연구가 수행한 시각적 결과를 보여준다. 그림 3은 forge POC 단계에서 KIRI Engine으로 생성한 8개 3DGS 에셋을 한 화면에 그리드로 배치한 PoC 렌더이며, aras-p UnityGaussianSplatting + Metal 백엔드에서 4.36M splats가 1.49초 만에 단일 프레임으로 렌더링됨을 입증한다. 그림 4·5는 Mip-NeRF360 bonsai 데이터셋에서 Brush 30K 학습 결과의 eval 렌더로, COLMAP sparse 입력(PSNR 32.21 dB)과 hloc sparse 입력(PSNR 31.84 dB)의 시각적 품질이 ±0.5 dB 허용 범위 안에서 사실상 동등함을 보인다.
+
+![그림 3. KIRI 8-splat 포트폴리오 렌더 (Forge POC, 4.36M splats, M1 Max 1.49초)](figures/forge-grid-8splat.png)
+
+*그림 3. KIRI 8-splat 포트폴리오 렌더 (Forge POC, 4.36M splats, M1 Max 1.49초).*
+
+![그림 4. Mip-NeRF360 bonsai — Brush 30K 학습 결과 (COLMAP sparse 입력, PSNR 32.21 dB)](figures/brush-30k-bonsai-eval.png)
+
+*그림 4. Mip-NeRF360 bonsai — Brush 30K 학습 결과 (COLMAP sparse 입력, PSNR 32.21 dB).*
+
+![그림 5. Mip-NeRF360 bonsai — Brush 30K 학습 결과 (hloc sparse 입력, PSNR 31.84 dB)](figures/brush-hloc-30k-bonsai-eval.png)
+
+*그림 5. Mip-NeRF360 bonsai — Brush 30K 학습 결과 (hloc sparse 입력, PSNR 31.84 dB).*
+
 시각적으로는 3DGS 에셋이 메시 에셋보다 표면 질감이 풍부했으나, 시점에 따라 가우시안 분포 경계가 드러나는 아티팩트가 간헐적으로 관찰되었다. ProBuilder 벽·바닥의 매끈한 면과 3DGS 사물의 유기적 질감 사이에 시각적 이질감이 있긴 했지만, 프로토타이핑 용도에서 그것이 결정적 문제가 되지는 않았다.
 
 배치의 의미론적 측면에서는, 인접 관계("침대 옆 협탁"), 기능적 관계("책상 앞 의자"), 공간 관습("벽면 정렬") 세 범주 모두에서 LLM이 대체로 합리적 결과를 냈다. 문제가 된 것은 밀집 영역에서 간격이 비좁아지는 경우와, 문의 개폐 반경 같은 동적 공간 요구를 고려하지 못하는 경우였다. 벽면 가구 정렬 시 벽과의 간격이 OverlapBox 기준으로는 통과하지만 실제 가구 배치 관행과는 어긋나는 사례도 있었다. 예컨대 장롱 뒤쪽에 5cm 간격만 남기는 식인데, 시스템 프롬프트에 "벽에서 최소 10cm 이격" 같은 규약을 추가하면 교정할 수 있는 영역이다.
