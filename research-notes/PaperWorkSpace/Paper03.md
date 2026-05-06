@@ -123,7 +123,9 @@ LLM을 실내 가구 배치에 활용하는 연구는 2023년 이후 빠르게 �
 
 이 연구들이 공통적으로 보고하는 문제가 있다. LLM은 "침실에는 침대가 있어야 한다"거나 "책상 앞에 의자를 둔다" 같은 상식적 관계는 잘 잡는다. 하지만 좌표의 물리적 타당성은 다른 문제다. 가구가 허공에 뜨거나 벽을 뚫고 나가거나 다른 물체와 겹치는 사례가 빈번하게 보고되었다(Feng et al., 2023; Yang et al., 2024). 근본 원인은 명확한데, LLM은 텍스트 토큰 공간에서 작동하지 유클리드 기하학을 내재적으로 계산하지는 않기 때문이다.
 
-이 한계를 보완하려는 시도는 대체로 세 갈래로 정리된다. 첫째는 **시각 정보의 도입**이다. LayoutVLM(Sun et al., 2025)은 vision-language 모델이 렌더링된 장면을 관측하며 좌표를 미분 가능한 최적화 루프 안에서 갱신하도록 설계하였고, 언어만으로는 잡히지 않던 배치의 시각적 합리성을 개선하였다. 둘째는 **다중 에이전트 정교화**이다. DisCo-Layout/OptiScene(Liu et al., 2025)은 대략적 레이아웃을 제안하는 에이전트와 이를 비판·수정하는 에이전트를 분리하여, 단일 프롬프트 응답의 오류를 반복 대화로 누그러뜨리는 접근을 보인다. 셋째는 **내러티브·의미 중심 입력**이다. SceneTeller(Öcal et al., 2024)는 "아늑한 서재, 창가에 책상" 같은 짧은 내러티브로부터 레이아웃을 도출하며, 프롬프트의 자연스러움과 결과의 의미적 일관성 사이의 연결을 시도한다. 한편 3DGraphLLM(Zemskova & Yudin, 2025)은 3D scene graph를 LLM의 입력 표현으로 끌어들여 관계 중심 추론을 강화하는 계열로, 위의 세 갈래와는 다른 축에서 공간 이해를 보강한다.
+이 한계를 보완하려는 시도는 대체로 세 갈래로 정리된다. 첫째는 **시각 정보의 도입**이다. LayoutVLM(Sun et al., 2025)은 vision-language 모델이 렌더링된 장면을 관측하며 좌표를 미분 가능한 최적화 루프 안에서 갱신하도록 설계하였고, 언어만으로는 잡히지 않던 배치의 시각적 합리성을 개선하였다. 둘째는 **다중 에이전트 정교화**이다. DisCo-Layout/OptiScene(Liu et al., 2025)은 대략적 레이아웃을 제안하는 에이전트와 이를 비판·수정하는 에이전트를 분리하여, 단일 프롬프트 응답의 오류를 반복 대화로 누그러뜨리는 접근을 보인다. 셋째는 **내러티브·의미 중심 입력**이다. SceneTeller(Öcal et al., 2024)는 "아늑한 서재, 창가에 책상" 같은 짧은 내러티브로부터 레이아웃을 도출하며, 프롬프트의 자연스러움과 결과의 의미적 일관성 사이의 연결을 시도한다. 한편 3DGraphLLM(Zemskova & Yudin, 2025)은 3D scene graph를 LLM의 입력 표현으로 끌어들여 관계 중심 추론을 강화하는 계열로, 위의 세 갈래와는 다른 축에서 공간 이해를 보강한다. 넷째 축으로 **오픈소스 LLM 파인튜닝**을 별도로 구분할 수 있다. LLplace(Yang & Lu, 2024)[49]는 Llama-3 계열 오픈 모델을 3D 실내 레이아웃 데이터로 파인튜닝해, 상용 API(GPT-4 등)에 의존하지 않고도 LayoutGPT·Holodeck 계보의 배치 품질을 재현하며 대화형 수정(가구 추가·삭제·이동) 기능까지 확보하였다. 이 갈래는 프롬프트 엔지니어링에 기대는 앞의 세 접근과 달리, 모델 가중치 자체에 공간 상식을 주입한다는 점에서 축을 달리한다.
+
+평가용 데이터셋 측면에서는 FurniScene(Zhang et al., 2024)[50]이 주목할 만하다. 11,698개 실내 방과 39,691개 가구 인스턴스에 전문가 배치 메타데이터를 부착하여, LLM 레이아웃 출력의 의미적·기하적 타당성을 대규모로 벤치마크할 수 있는 기반을 제공한다. 본 연구는 단일 프로젝트 규모에 집중해 FurniScene를 직접 평가 지표로 채택하지는 않으나, Semantic Proximity 점수의 외부 ground truth로 향후 확장 가능한 자원이다.
 
 요약하면 이 분야의 발전 축은 **단발성 제안(single-shot) → 반복 정교화(multi-agent) → 시각 접지(vision-grounded)** 방향으로 이동하고 있으며, 공통된 기저 문제—좌표 출력의 물리적 타당성—는 여전히 외부 검증 장치에 의존한다. 본 연구는 이 외부 검증자 역할을 게임 엔진의 물리 시스템이 맡도록 한다는 점에서 위 세 갈래와 다른 축에 서 있다.
 
@@ -131,7 +133,7 @@ LLM을 실내 가구 배치에 활용하는 연구는 2023년 이후 빠르게 �
 
 AI가 만든 3D 콘텐츠를 게임 엔진 안에서 실제로 돌리는 연구는 아직 얇은 편이다. Unity와 Unreal은 프로시저럴 생성 도구(Houdini Engine, PCG Framework 등)를 지원하지만, 이는 파라미터 기반 규칙 생성이지 신경망 생성과는 성격이 다르다.
 
-3DGS의 Unity 통합에서는 UnityGaussianSplatting(Aras-p, 2023)이 사실상 유일한 실용적 프레임워크다. D3D12, Metal, Vulkan을 지원하고 Quest 3 같은 VR 기기에서도 동작한다. 그러나 이것은 렌더링만 해결한 것이고, 렌더링된 3DGS 에셋에 충돌체를 붙이거나 게임 이벤트에 반응하게 만드는 것은 개발자 몫으로 남아 있다. 본 연구의 HybridSceneObject 설계는 이 공백을 메우기 위한 것이다.
+3DGS의 Unity 통합에서는 UnityGaussianSplatting(Aras-p, 2023)이 사실상 유일한 실용적 프레임워크다. D3D12, Metal, Vulkan을 지원하고 Quest 3 같은 VR 기기에서도 동작한다. 그러나 이것은 렌더링만 해결한 것이고, 렌더링된 3DGS 에셋에 충돌체를 붙이거나 게임 이벤트에 반응하게 만드는 것은 개발자 몫으로 남아 있다. 실무 적용 사례로 Baltsavias et al.(2025)[51]은 문화유산 도메인에서 3DGS와 게임 엔진의 폴리곤 메시를 하나의 씬 안에서 교차 렌더링하는 하이브리드 파이프라인을 SIGGRAPH Talk로 보고하였는데, 이는 3DGS가 연구실 데모를 넘어 제작 파이프라인 단계에 들어섰음을 시사한다. 본 연구의 HybridSceneObject 설계는 이 공백을 메우기 위한 것이다.
 
 LLM과 게임 엔진을 잇는 흐름은 종전에는 NPC 대화 생성(Park et al., 2023) 쪽에 집중되어 있었으나, 최근에는 **공간 저작·에셋 관리**로 확산되고 있다. 2026년 초 공개된 Unity 공식 AI Assistant 2.0(Unity Technologies, 2026)은 Model Context Protocol(MCP) 기반 에디터 통합을 제공해, Claude Code나 Cursor 같은 외부 에이전트가 자연어 지시로 씬을 생성하거나 에셋을 재배치하고 스크립트를 편집할 수 있게 한다. 이 공식 경로와 별개로 CoplayDev·CoderGamester 등이 운영하는 커뮤니티 MCP 구현도 활발하며, ai-powered-level-designer(TaaroBravo, 2025)처럼 Unity 6 에디터 확장 형태로 자연어 레벨 설계를 시도하는 개인 프로젝트도 나타났다. 다만 이들 MCP 계열은 대부분 **에디터 전용**이라는 점에서 런타임 배포본에서 동일 기능이 보장되지 않으며, 연구 재현성이 중요한 학위 논문 평가에는 제약이 따른다.
 
@@ -225,6 +227,8 @@ Unity-SplatForge는 Unity C# 클라이언트와 Python FastAPI 서버로 나뉜�
 
 3DGS 에셋이 게임 엔진에서 쓸모 있으려면 래핑 과정이 필요하다. 이를 위해 HybridSceneObject를 설계하였다. GaussianSplatRenderer가 시각 표현을 맡고, 그 위에 프록시 충돌체를 얹는 구조다. 충돌체 유형(Box, Sphere, Capsule)은 에셋의 바운딩 정보로부터 자동 선택된다. 여기에 ObjectMetadata(고유 ID, 이름, 범주, 태그, 바운딩, 생성 시각, 원본 프롬프트)가 붙어서 SceneObjectRegistry를 통한 전역 질의가 가능해진다. 이를테면 "카테고리가 furniture인 객체 전부"를 한 번에 뽑아 일괄 처리하는 식이다.
 
+3DGS 에셋 학습 파이프라인은 두 경로를 갖는다. 하나는 nerfstudio·gsplat 계열의 CUDA 학습기를 Windows 환경에서 운영하는 초기 계획이고, 다른 하나는 Brush[45](ArthurBrussee, Rust·wgpu, Apache-2.0 라이선스)를 macOS에서 직접 실행하는 최근 경로다. Brush는 COLMAP 또는 Nerfstudio 포맷 입력을 받아 Metal·Vulkan·D3D12 등 wgpu 백엔드 위에서 학습을 수행하므로 CUDA 의존 없이 Apple Silicon 기기에서도 전체 파이프라인이 완결된다. 본 연구는 이 경로의 실현 가능성을 2026년 4월 내부 PoC로 확증하였으며, 학습·임포트·렌더의 전 구간이 단일 기기에서 오류 없이 동작함을 확인하였다. 결과 PLY는 aras-p[12] UnityGaussianSplatting이 요구하는 필수 속성(x·y·z 좌표, scale_0-2, opacity, rot_0-3, f_dc_0-2, f_rest)을 모두 만족하며, GaussianSplatAsset 변환 후 런타임 렌더까지 무수정으로 통과하였다.
+
 ### 3.4. 의미론적 배치와 물리 검증
 
 이 파이프라인에서 가장 핵심적인 부분이다. 크게 세 단계로 나뉜다.
@@ -257,8 +261,12 @@ Unity-SplatForge는 Unity C# 클라이언트와 Python FastAPI 서버로 나뉜�
 | 구조물 | ProBuilder |
 | 의존성 관리 | Poetry (Python), Assembly Definition (Unity) |
 | 하드웨어 | Apple M1 Max, 64GB RAM |
+| OS / 가속 | macOS 14+ (Apple Silicon, MPS via Metal) |
+| 3DGS 학습 (옵션) | Brush 0.x — Rust·wgpu, Apache-2.0, macOS 네이티브 |
 
 클라이언트 코드는 Runtime(Core, Network, Geometry, Metadata)과 Editor(Windows, Inspectors) 어셈블리로 분리되어 있다. 서버는 .env 파일에서 LLM_PROVIDER를 mock/openai/claude 중 하나로 지정한다. mock 모드에서는 침실·사무실·거실용 사전 정의 레이아웃이 키워드 매칭으로 반환되므로 API 키 없이도 파이프라인 전체를 검증할 수 있다.
+
+Python FastAPI 서버는 MVP 단계에서 LLM 호출과 에셋 관리 계층을 겸하도록 설계되었으나, 3DGS 학습 단계가 macOS 네이티브 Brush(Rust·wgpu)로 이동하면서 향후 서버 층도 단일 기기 내 경량 프로세스로 통합 가능한 경로가 열렸다. 본 연구 PoC 시점에는 서버가 이원 구조를 유지하지만, 학습과 렌더가 로컬에서 완결되므로 서버는 LLM 호출 전용 stateless 엔드포인트로 축소할 수 있는 선택지를 확보하였다.
 
 ### 4.2. 구현 결과
 
@@ -412,7 +420,7 @@ Unity-SplatForge는 방 하나를 자동으로 꾸며주는 도구다. 벽·바�
 
 LLM의 공간 추론은 직사각형 방에서는 무난했으나, L자형 방이나 로프트 같은 복잡한 기하에서는 가구가 꺾인 벽 뒤쪽에 놓이는 등 오류가 관찰되었다. 텍스트 프롬프트만으로는 결과를 보고 고치는 반복 수정이 어렵다는 점도 걸린다. 씬을 렌더링한 스크린샷을 VLM에 넘겨 "책상이 벽에 너무 붙었다"는 피드백을 받아 재배치하는 루프를 붙이면 이 문제가 줄어들 것으로 예상한다.
 
-3DGS 객체의 정적 특성도 제약이다. 질량이나 마찰 같은 물리적 속성을 3DGS에 직접 부여하는 것은 현재 불가능하고, 프록시 충돌체를 통한 간접적 상호작용만 된다. PhysGaussian(Xie et al., 2024)처럼 가우시안에 연속체 역학을 입히는 연구가 성숙하면 상황이 달라질 수 있다.
+3DGS 객체의 정적 특성도 제약이다. 질량이나 마찰 같은 물리적 속성을 3DGS에 직접 부여하는 것은 현재 불가능하고, 프록시 충돌체를 통한 간접적 상호작용만 된다. PhysGaussian(Xie et al., 2024)[16]처럼 가우시안에 연속체 역학을 입히거나 PhysSplat(Zhao et al., 2025)[35]처럼 MLLM으로 물성 파라미터를 추정하는 연구, 나아가 GASP(Borycki et al., 2025)[52]처럼 가우시안 파라미터화 자체를 물리 엔진에 직접 연결하는 시도가 성숙하면 상황이 달라질 수 있다. 특히 GASP 계열은 Raycast 프록시 충돌체를 우회해 3DGS 네이티브 물리를 지향한다는 점에서, 본 연구의 하이브리드 접근이 가진 간접성의 근본적 해소 방향을 제시한다.
 
 확장성 문제도 있다. 현재 파이프라인은 방 하나 단위에 맞춰져 있다. 건물이나 도시 규모로 가려면 3DGS 에셋의 LOD 관리, 스트리밍 로딩, 절두체 기반 선택적 렌더링이 필수적이고, LLM의 추론 범위 역시 복수 방 이상으로 넓혀야 한다. LS-Gaussian(Wei et al., 2025) 같은 경량 스트리밍 프레임워크와의 통합이 이 방향의 출발점이 될 수 있다.
 
@@ -474,3 +482,8 @@ LLM의 공간 추론은 직사각형 방에서는 무난했으나, L자형 방�
 [46] Ghif, M., "splat-apple: MLX/MPS Gaussian splatting for Apple Silicon," GitHub repository, 2026. [Online]. Available: https://github.com/ghif/splat-apple (accessed Apr. 24, 2026).
 [47] Tofy, P., "OpenSplat: libtorch-based 3DGS with MPS/CUDA/ROCm backends," GitHub repository, 2025. [Online]. Available: https://github.com/pierotofy/OpenSplat (accessed Apr. 24, 2026).
 [48] Iffyloop, "gsplat-mps: MPS fork of nerfstudio/gsplat 0.1.3," GitHub repository, 2024. [Online]. Available: https://github.com/iffyloop/gsplat-mps (accessed Apr. 24, 2026).
+
+[49] Yang, C. and Lu, S., "LLplace: The 3D indoor scene layout generation and editing via large language model," arXiv:2406.03866, 2024.
+[50] Zhang, G. et al., "FurniScene: A large-scale 3D room dataset with intricate furnishing scenes," arXiv:2401.03470, 2024.
+[51] Baltsavias, T. et al., "Hybrid rendering of 3D Gaussian splatting and polygonal meshes for cultural heritage in game engines," in ACM SIGGRAPH Talks, 2025. (DOI: 10.1145/3721239.3734094)
+[52] Borycki, P. et al., "GASP: Gaussian splatting for physic-based simulations," Computer Vision and Image Understanding, 2025. (arXiv:2409.05819)
