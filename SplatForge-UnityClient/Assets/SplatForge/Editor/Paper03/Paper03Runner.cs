@@ -1,11 +1,15 @@
 // Paper03Runner.cs — batchmode entry for Paper03 experiment
 //
-// 그림 7~12 정식 PBR 렌더 파이프라인 (2026-05-07 재작성):
+// 그림 7~12 정식 PBR 렌더 파이프라인 (2026-05-07 재작성, v3 회전·룸 보정):
 //   (1) Polyhaven 동봉 PBR 텍스처(diff/nor_gl/arm)를 HDRP/Lit Material 에 직접 바인딩
 //   (2) HDRP Volume(Exposure + Tonemapping ACES) + Directional Sun(Lux) 으로
 //       카메라가 받는 노출을 결정. tint/contrast/gamma 후처리 없음.
-//   (3) FBX root 회전 누적 정리 + 누운 객체 자동 보정 + per-asset override 로 회전 비정상 해결.
-//   (4) 색조 hack 전면 제거.
+//   (3) 회전 근본 보정 (2026-05-07): auto_lay_fix 휴리스틱 제거
+//       (rug/tv 처럼 본질적으로 평평한 객체를 잘못 세움). 대신 spec.position.y 를
+//       0 으로 클램프하고 ground-snap 이 실제 Renderer.bounds.size.y 를 사용해 바닥에
+//       정확히 안착시킨다.
+//   (4) 3 벽 + 4×4 바닥 procedural 추가 + 카메라 외부 시점 (diorama 스타일).
+//       furniture 좌표는 (-1.7..1.7) 로 클램프해 벽 안쪽에 배치.
 
 using System;
 using System.Collections.Generic;
@@ -87,7 +91,21 @@ namespace SplatForge.EditorPaper03
         };
 
         // Per-asset 회전 보정 (Euler X,Y,Z degrees, world space).
+        // FBX inspector (Tools/Inspect FBX Bounds) 로 측정한 자연 bounds 결과:
+        //   bookshelf_01: Y=0.26, Z=2.08 → 누워서 임포트. +90° X 로 세움.
+        //   plant_01    : X=1.08, Y=0.22 → 누움. +90° Z 로 세움.
+        //   cabinet_01  : X=2.44, Y=0.68 → 누움. +90° X 로 세움.
+        //   nightstand_01: Y=0.42, Z=0.70 → 가벼운 누움. +90° X 로 세움.
+        //   table_01    : Y=1.30 (Z=0.49) → 세워져 있어 보이지만 round table 의 회전축
+        //                  이 천장을 향한 형태 (typical FBX). +90° X 로 눕혀 정상 테이블.
+        //   bed_01, chair_01, lamp_01, sofa_01, wardrobe_01, monitor_01, tv_01, rug_01, desk_01
+        //   는 자연 Y 축이 정상 — 보정 불필요.
         static readonly Dictionary<string, Vector3> AxisFix = new Dictionary<string, Vector3> {
+            { "bookshelf_01",  new Vector3( 90f, 0f, 0f) },
+            { "plant_01",      new Vector3(  0f, 0f, 90f) },
+            { "cabinet_01",    new Vector3( 90f, 0f, 0f) },
+            { "nightstand_01", new Vector3( 90f, 0f, 0f) },
+            { "table_01",      new Vector3( 90f, 0f, 0f) },
         };
 
         public static void Run()
@@ -116,12 +134,43 @@ namespace SplatForge.EditorPaper03
 
             SetupHdrpVolume();
 
+            // 4×4 바닥 + 3 벽 (back, left, right) procedural diorama.
+            // 정면 벽은 카메라 시야를 위해 생략. 천장도 생략.
+            const float ROOM_W = 4f;          // 가로(x)
+            const float ROOM_D = 4f;          // 세로(z)
+            const float WALL_H = 2.5f;        // 벽 높이
+            const float WALL_T = 0.05f;       // 벽 두께
+
             var floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
             floor.name = "Floor";
-            floor.transform.localScale = new Vector3(8f, 0.1f, 8f);
-            floor.transform.position = new Vector3(0, -0.05f, 0);
-            var floorMat = MakePlainHdrpLit(new Color(0.45f, 0.40f, 0.34f), 0.20f, 0.0f);
+            floor.transform.localScale = new Vector3(ROOM_W, 0.05f, ROOM_D);
+            floor.transform.position = new Vector3(0, -0.025f, 0);
+            var floorMat = MakePlainHdrpLit(new Color(0.55f, 0.42f, 0.30f), 0.30f, 0.0f);
             floor.GetComponent<Renderer>().sharedMaterial = floorMat;
+
+            var wallMat = MakePlainHdrpLit(new Color(0.94f, 0.93f, 0.90f), 0.10f, 0.0f);
+
+            var backWall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            backWall.name = "BackWall";
+            backWall.transform.localScale = new Vector3(ROOM_W, WALL_H, WALL_T);
+            backWall.transform.position = new Vector3(0, WALL_H * 0.5f, ROOM_D * 0.5f);
+            backWall.GetComponent<Renderer>().sharedMaterial = wallMat;
+
+            var leftWall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            leftWall.name = "LeftWall";
+            leftWall.transform.localScale = new Vector3(WALL_T, WALL_H, ROOM_D);
+            leftWall.transform.position = new Vector3(-ROOM_W * 0.5f, WALL_H * 0.5f, 0);
+            leftWall.GetComponent<Renderer>().sharedMaterial = wallMat;
+
+            var rightWall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            rightWall.name = "RightWall";
+            rightWall.transform.localScale = new Vector3(WALL_T, WALL_H, ROOM_D);
+            rightWall.transform.position = new Vector3(ROOM_W * 0.5f, WALL_H * 0.5f, 0);
+            rightWall.GetComponent<Renderer>().sharedMaterial = wallMat;
+
+            // furniture 클램프 영역 — 벽에서 0.3m 이상 안쪽.
+            const float CLAMP_X = ROOM_W * 0.5f - 0.3f;
+            const float CLAMP_Z = ROOM_D * 0.5f - 0.3f;
 
             // Sun (HDRP intensity in Lux). 정오 햇빛 ~100,000 lux 는 너무 강하므로
             // 실내 창문 들어오는 일조량 ~30,000 lux 으로 설정.
@@ -151,9 +200,9 @@ namespace SplatForge.EditorPaper03
             cam.clearFlags = CameraClearFlags.Skybox;
             cam.fieldOfView = 50f;
             cam.nearClipPlane = 0.05f;
-            // 코너에서 사선으로 잡되 약간 더 멀리 + 위에서 — 객체가 모두 화각에 들어오도록.
-            camGo.transform.position = new Vector3(4.2f, 3.0f, -4.2f);
-            camGo.transform.LookAt(new Vector3(0f, 0.6f, 0.4f));
+            // 정면 벽이 없는 쪽(z<0)에서 약간 위에서 룸 안쪽을 바라본다 — diorama 시점.
+            camGo.transform.position = new Vector3(0f, 2.0f, -3.5f);
+            camGo.transform.LookAt(new Vector3(0f, 0.6f, 0f));
             camGo.AddComponent<HDAdditionalCameraData>();
 
             var spawned = new List<GameObject>();
@@ -185,16 +234,9 @@ namespace SplatForge.EditorPaper03
 
                         FitToBounds(go, size);
 
-                        var b = ComputeRendererBounds(go);
-                        // chair/desk 같은 모델이 누워서 임포트되는 사례 보정 — 높이가 가로/세로
-                        // 평균보다 절반 미만이면 누운 상태로 간주.
-                        float avgXZ = (b.size.x + b.size.z) * 0.5f;
-                        if (b.size.y < avgXZ * 0.50f)
-                        {
-                            go.transform.Rotate(-90f, 0f, 0f, Space.World);
-                            diag += "auto_lay_fix:-90X;";
-                            FitToBounds(go, size);
-                        }
+                        // auto_lay_fix 휴리스틱 제거 (2026-05-07): rug/tv 처럼 본질적으로
+                        // 평평한 객체를 -90X 회전시켜 세우는 부작용 발생. Polyhaven FBX 들은
+                        // import time 에 이미 정상 방향이며 ground-snap 으로 대응.
 
                         if (!string.IsNullOrEmpty(slug) && AxisFix.TryGetValue(slug, out var fix))
                         {
@@ -219,9 +261,31 @@ namespace SplatForge.EditorPaper03
                 }
                 go.name = string.IsNullOrEmpty(p.objectName) ? p.objectId : p.objectName;
 
-                float yPos = applyGroundSnap ? (p.position.y + size.y * 0.5f) : p.position.y;
-                go.transform.position = new Vector3(p.position.x, yPos, p.position.z);
-                go.transform.Rotate(0f, p.rotation.y, 0f, Space.World);
+                // X/Z 클램프 — 룸 내부(±CLAMP)로 강제. LLM/random 이 벽 밖 좌표를 줘도 안전.
+                float clampedX = Mathf.Clamp(p.position.x, -CLAMP_X, CLAMP_X);
+                float clampedZ = Mathf.Clamp(p.position.z, -CLAMP_Z, CLAMP_Z);
+
+                // Y 클램프 (H1 fix): LLM/mock 이 가끔 "데스크 위"를 의도해 y>0 을 넣지만
+                // ground-snap 공식 y = position.y + size.y/2 와 충돌해 객체가 떠 버림.
+                // 정책: spec.position.y 를 0 으로 클램프하고 ground-snap 이 단독으로
+                // 바닥 안착을 처리한다 (실제 Renderer.bounds 사용해 pivot offset 까지 정확히).
+                if (applyGroundSnap)
+                {
+                    // 임시 위치 (pivot 기준) 에 두고 실제 렌더러 bounds 를 측정.
+                    go.transform.position = new Vector3(clampedX, 0f, clampedZ);
+                    go.transform.Rotate(0f, p.rotation.y, 0f, Space.World);
+
+                    var rb = ComputeRendererBounds(go);
+                    // bounds.min.y 가 0 이 되도록 y 보정. (pivot != bottom 일 때 정확).
+                    float dy = -rb.min.y;
+                    go.transform.position += new Vector3(0f, dy, 0f);
+                }
+                else
+                {
+                    // llm_only — 보정 없음, spec 그대로.
+                    go.transform.position = new Vector3(clampedX, p.position.y, clampedZ);
+                    go.transform.Rotate(0f, p.rotation.y, 0f, Space.World);
+                }
 
                 if (go.GetComponent<Collider>() == null)
                 {
@@ -262,6 +326,7 @@ namespace SplatForge.EditorPaper03
                 {
                     if (h.gameObject == go) continue;
                     if (h.gameObject == floor) continue;
+                    if (h.gameObject == backWall || h.gameObject == leftWall || h.gameObject == rightWall) continue;
                     overlap++;
                 }
                 totalOverlaps += overlap;
@@ -476,10 +541,12 @@ namespace SplatForge.EditorPaper03
             for (int i = 1; i < rends.Length; i++) b.Encapsulate(rends[i].bounds);
             Vector3 cur = b.size;
             if (cur.x <= 0.001f || cur.y <= 0.001f || cur.z <= 0.001f) return;
+            // 2026-05-07: 균일 min 스케일 유지 — 메시 비례 보존이 우선.
+            // 일부 가구가 target 보다 작아질 수 있지만 셰어링/뒤틀림 없음.
             float sx = targetSize.x / cur.x;
             float sy = targetSize.y / cur.y;
             float sz = targetSize.z / cur.z;
-            float s  = Mathf.Min(sx, Mathf.Min(sy, sz));
+            float s = Mathf.Min(sx, Mathf.Min(sy, sz));
             go.transform.localScale = go.transform.localScale * s;
         }
 
