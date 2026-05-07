@@ -32,6 +32,7 @@ class MockLLMProvider(LLMProvider):
             "objects": [
                 {"type": "desk", "pos": [0, 0, 2], "rot": 180, "rationale": "Main workspace facing room"},
                 {"type": "chair", "pos": [0, 0, 1.3], "rot": 0, "rationale": "At main desk"},
+                {"type": "monitor", "pos": [0, 0.75, 2], "rot": 180, "rationale": "On desk"},
                 {"type": "bookshelf", "pos": [-2.5, 0, 0], "rot": 90, "rationale": "Against left wall"},
                 {"type": "filing_cabinet", "pos": [2, 0, 2.5], "rot": -90, "rationale": "Near desk"},
                 {"type": "plant", "pos": [-2, 0, -2], "rot": 0, "rationale": "Corner decoration"},
@@ -45,7 +46,7 @@ class MockLLMProvider(LLMProvider):
             "objects": [
                 {"type": "sofa", "pos": [0, 0, -1.5], "rot": 0, "rationale": "Main seating facing TV area"},
                 {"type": "coffee_table", "pos": [0, 0, 0], "rot": 0, "rationale": "In front of sofa"},
-                {"type": "tv_stand", "pos": [0, 0, 2.5], "rot": 180, "rationale": "Against far wall"},
+                {"type": "tv", "pos": [0, 0, 2.5], "rot": 180, "rationale": "Against far wall"},
                 {"type": "armchair", "pos": [-2, 0, 0], "rot": 45, "rationale": "Additional seating"},
                 {"type": "armchair", "pos": [2, 0, 0], "rot": -45, "rationale": "Additional seating"},
                 {"type": "floor_lamp", "pos": [-2.5, 0, -1.5], "rot": 0, "rationale": "Corner lighting"},
@@ -86,8 +87,9 @@ class MockLLMProvider(LLMProvider):
         size_x = floor_max.x - floor_min.x
         size_z = floor_max.z - floor_min.z
 
-        # Default layout assumes 10x10 area centered at origin
-        default_size = 10.0
+        # 2026-04-29: 그림 7~12 가 실제 방처럼 보이도록 6m → 5m 기준으로 축소.
+        # 하드코딩 LAYOUTS 좌표는 ±2.5m 안쪽으로 압축한다.
+        default_size = 6.0
         scale_x = size_x / default_size
         scale_z = size_z / default_size
 

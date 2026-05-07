@@ -1,6 +1,8 @@
 """OpenAI LLM provider implementation"""
 
 import json
+import os
+import time
 from typing import Optional
 
 from openai import AsyncOpenAI
@@ -13,12 +15,13 @@ from ..config import get_settings
 SYSTEM_PROMPT = """You are a 3D scene layout planner. Given a room description and floor bounds, generate a JSON layout with object placements.
 
 Rules:
-1. Objects must not overlap - maintain at least 0.5m spacing
+1. Objects must not overlap - maintain at least 0.4m spacing (use the FULL floor area; rooms are typically small ~3-4m square)
 2. Objects must be within floor bounds
 3. Furniture should be placed against walls when appropriate
-4. Maintain walkable paths (min 0.8m width)
-5. Group related objects (desk + chair, bed + nightstand)
+4. Maintain walkable paths (min 0.6m width)
+5. Group related objects close together (desk + chair within 0.7m, bed + nightstand within 0.4m, sofa + coffee_table within 1.0m)
 6. Consider natural lighting and room flow
+7. Do NOT spread objects far apart — keep the layout dense like a real small room
 
 Output ONLY valid JSON in this exact format:
 {
@@ -31,6 +34,27 @@ Output ONLY valid JSON in this exact format:
 
 Position is [x, y, z] where y is up (typically 0 for floor level).
 Rotation is [rx, ry, rz] in degrees where ry is the main rotation around vertical axis."""
+
+
+# === Paper03 Phase 2 — usage logging ===
+_USAGE_LOG_PATH = os.environ.get("OPENAI_USAGE_LOG", "/Users/oz6oy/sf-test-agent/paper03-experiment/logs/openai_usage.jsonl")
+
+
+def _log_usage(model: str, usage_obj, latency_s: float):
+    """Append per-call usage record. NEVER logs the API key or prompt content."""
+    try:
+        rec = {
+            "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "model": model,
+            "prompt_tokens": getattr(usage_obj, "prompt_tokens", None),
+            "completion_tokens": getattr(usage_obj, "completion_tokens", None),
+            "total_tokens": getattr(usage_obj, "total_tokens", None),
+            "latency_s": round(latency_s, 3),
+        }
+        with open(_USAGE_LOG_PATH, "a") as f:
+            f.write(json.dumps(rec) + "\n")
+    except Exception:
+        pass
 
 
 class OpenAIProvider(LLMProvider):
@@ -61,9 +85,7 @@ Generate the layout JSON:"""
 
     def _parse_response(self, content: str) -> LayoutPlan:
         """Parse LLM response into LayoutPlan"""
-        # Try to extract JSON from response
         try:
-            # Handle markdown code blocks
             if "```json" in content:
                 content = content.split("```json")[1].split("```")[0]
             elif "```" in content:
@@ -89,7 +111,6 @@ Generate the layout JSON:"""
                 reasoning=data.get("reasoning", ""),
             )
         except (json.JSONDecodeError, KeyError, IndexError) as e:
-            # Return empty plan on parse error
             return LayoutPlan(
                 objects=[],
                 reasoning=f"Failed to parse LLM response: {e}",
@@ -114,6 +135,7 @@ Generate the layout JSON:"""
             include_decorations,
         )
 
+        t0 = time.time()
         response = await self.client.chat.completions.create(
             model=self.model,
             messages=[
@@ -123,6 +145,8 @@ Generate the layout JSON:"""
             temperature=0.7,
             max_tokens=2000,
         )
+        latency = time.time() - t0
+        _log_usage(self.model, response.usage, latency)
 
         content = response.choices[0].message.content or ""
         return self._parse_response(content)
@@ -155,6 +179,7 @@ Constraints:
 
 Generate positions JSON:"""
 
+        t0 = time.time()
         response = await self.client.chat.completions.create(
             model=self.model,
             messages=[
@@ -164,6 +189,8 @@ Generate positions JSON:"""
             temperature=0.7,
             max_tokens=2000,
         )
+        latency = time.time() - t0
+        _log_usage(self.model, response.usage, latency)
 
         content = response.choices[0].message.content or ""
         return self._parse_response(content)
