@@ -188,6 +188,8 @@ namespace SplatForge.EditorPaper03
             hdSun.lightUnit = LightUnit.Lux;
             hdSun.SetShadowResolution(2048);
             hdSun.EnableShadows(true);
+            // 그림자 완화 — 0.45 로 약 55% 투명도 적용 (마스터 요청, 2026-04-29).
+            hdSun.shadowDimmer = 0.45f;
 
             var fillGo = new GameObject("Fill");
             var fill = fillGo.AddComponent<Light>();
@@ -195,7 +197,7 @@ namespace SplatForge.EditorPaper03
             fill.color = new Color(0.85f, 0.90f, 1.0f);
             fillGo.transform.rotation = Quaternion.Euler(30f, 150f, 0f);
             var hdFill = fillGo.AddComponent<HDAdditionalLightData>();
-            hdFill.intensity = 8000f;
+            hdFill.intensity = 18000f; // 보조광 강화 (8000 → 18000 lux) — 그림자 영역 보강.
             hdFill.lightUnit = LightUnit.Lux;
             hdFill.EnableShadows(false);
 
@@ -360,6 +362,8 @@ namespace SplatForge.EditorPaper03
             hdSun.lightUnit = LightUnit.Lux;
             hdSun.SetShadowResolution(2048);
             hdSun.EnableShadows(true);
+            // 그림자 완화 — 0.45 로 약 55% 투명도 적용 (마스터 요청, 2026-04-29).
+            hdSun.shadowDimmer = 0.45f;
 
             var fillGo = new GameObject("Fill");
             var fill = fillGo.AddComponent<Light>();
@@ -367,7 +371,7 @@ namespace SplatForge.EditorPaper03
             fill.color = new Color(0.85f, 0.90f, 1.0f);
             fillGo.transform.rotation = Quaternion.Euler(30f, 150f, 0f);
             var hdFill = fillGo.AddComponent<HDAdditionalLightData>();
-            hdFill.intensity = 8000f;
+            hdFill.intensity = 18000f; // 보조광 강화 (8000 → 18000 lux) — 그림자 영역 보강.
             hdFill.lightUnit = LightUnit.Lux;
             hdFill.EnableShadows(false);
 
