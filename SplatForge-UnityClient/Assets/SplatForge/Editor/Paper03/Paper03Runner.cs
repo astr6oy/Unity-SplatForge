@@ -1,25 +1,11 @@
 // Paper03Runner.cs — batchmode entry for Paper03 experiment
 //
-// 레이아웃 spec.json 을 읽어 (1) 실제 메시 프리팹/리소스 또는 프리미티브 큐브를
-// 바닥(20x20) 위에 배치하고, (2) 레이캐스트 기반 부착도/겹침 측정 + 시멘틱
-// 근접도 점수를 계산한 뒤, (3) PNG 캡처 + metric JSON 을 기록한다.
-//
-// 호출:
-//   Unity -batchmode -projectPath ... -executeMethod SplatForge.EditorPaper03.Paper03Runner.Run
-//         -layoutSpec /abs/path/spec.json
-//         -outputDir  /abs/path/results/<scenario>/<condition>
-//         -trial      1
-//         -condition  full|llm_only|random_physics
-//         -logFile    /abs/path/log
-//         -quit -nographics
-//
-// spec.json 스키마 (assetPath 추가):
-//   { "scenario": "cozy_bedroom", "placements": [
-//       { "objectId": "...", "objectName": "...", "assetPath": "MockAssets/bed_01",
-//         "position": {"x":,"y":,"z":}, "rotation": {"x":,"y":,"z":},
-//         "scale":   {"x":,"y":,"z":}, "boundsMin": {...}, "boundsMax": {...} },
-//       ...
-//   ] }
+// 그림 7~12 정식 PBR 렌더 파이프라인 (2026-05-07 재작성):
+//   (1) Polyhaven 동봉 PBR 텍스처(diff/nor_gl/arm)를 HDRP/Lit Material 에 직접 바인딩
+//   (2) HDRP Volume(Exposure + Tonemapping ACES) + Directional Sun(Lux) 으로
+//       카메라가 받는 노출을 결정. tint/contrast/gamma 후처리 없음.
+//   (3) FBX root 회전 누적 정리 + 누운 객체 자동 보정 + per-asset override 로 회전 비정상 해결.
+//   (4) 색조 hack 전면 제거.
 
 using System;
 using System.Collections.Generic;
@@ -27,6 +13,8 @@ using System.IO;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.HighDefinition;
 using UnityEngine.SceneManagement;
 
 namespace SplatForge.EditorPaper03
@@ -56,11 +44,12 @@ namespace SplatForge.EditorPaper03
             public string objectId;
             public string objectName;
             public string assetPath;
-            public bool   asset_loaded;       // 실제 프리팹 로드 성공 여부
+            public bool   asset_loaded;
             public float  adhesion_dist;
             public bool   ground_contact;
             public int    overlap_count;
             public float  pos_x, pos_y, pos_z;
+            public string diag;
         }
 
         [Serializable] public class Metrics
@@ -80,6 +69,26 @@ namespace SplatForge.EditorPaper03
             public string ts_iso;
             public PerObject[] per_object;
         }
+
+        // FBX 슬러그 → Polyhaven 슬러그 매핑 (텍스처 파일명 prefix).
+        static readonly Dictionary<string,string> SlugToPoly = new Dictionary<string,string> {
+            { "bed_01",         "GothicBed_01" },
+            { "nightstand_01",  "ClassicNightstand_01" },
+            { "desk_01",        "metal_office_desk" },
+            { "chair_01",       "mid_century_lounge_chair" },
+            { "lamp_01",        "desk_lamp_arm_01" },
+            { "bookshelf_01",   "Shelf_01" },
+            { "plant_01",       "nettle_plant" },
+            { "sofa_01",        "Sofa_01" },
+            { "table_01",       "coffee_table_round_01" },
+            { "cabinet_01",     "modern_wooden_cabinet" },
+            { "wardrobe_01",    "painted_wooden_cabinet_02" },
+            { "tv_01",          "Television_01" },
+        };
+
+        // Per-asset 회전 보정 (Euler X,Y,Z degrees, world space).
+        static readonly Dictionary<string, Vector3> AxisFix = new Dictionary<string, Vector3> {
+        };
 
         public static void Run()
         {
@@ -101,56 +110,55 @@ namespace SplatForge.EditorPaper03
             try { spec = JsonUtility.FromJson<Spec>(File.ReadAllText(layoutSpec)); }
             catch (Exception e) { Debug.LogError($"[Paper03] spec parse fail: {e.Message}"); EditorApplication.Exit(3); return; }
 
-            // condition 별 물리 토글:
-            //   full           - LLM 위치 + 자동 ground-snap (size.y/2 만큼 들어올림)
-            //   llm_only       - LLM 이 지정한 position.y 그대로 사용 (스냅 비활성)
-            //   random_physics - 무작위 spec + ground-snap 적용
             bool applyGroundSnap = (condition != "llm_only");
 
-            // 1) 빈 씬 + 바닥/조명/카메라 구성
-            //    그림 7~12 렌더 품질 보정 (2026-04-29):
-            //      - 카메라 가까이 + FOV 축소로 객체가 더 크게 보이도록
-            //      - 키 라이트 + 필 라이트 + 앰비언트로 PBR 재질 입체감 강화
-            //      - 바닥은 카펫 톤 PBR Standard 머터리얼
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-            RenderSettings.ambientLight = new Color(0.16f, 0.18f, 0.22f);
-            RenderSettings.ambientIntensity = 1.0f;
+
+            SetupHdrpVolume();
+
             var floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
             floor.name = "Floor";
             floor.transform.localScale = new Vector3(8f, 0.1f, 8f);
             floor.transform.position = new Vector3(0, -0.05f, 0);
-            // 바닥 — 따뜻한 우드 톤 (rug 키워드를 피해 wood 카테고리로 매칭)
-            ApplyPbrTint(floor, "table_floor_wood");
-            // 키 라이트
-            var lightGo = new GameObject("KeyLight");
-            var light = lightGo.AddComponent<Light>();
-            light.type = LightType.Directional;
-            light.intensity = 1.0f;
-            light.color = new Color(1.0f, 0.96f, 0.90f);
-            lightGo.transform.rotation = Quaternion.Euler(50f, -25f, 0f);
-            // 필 라이트
-            var fillGo = new GameObject("FillLight");
+            var floorMat = MakePlainHdrpLit(new Color(0.45f, 0.40f, 0.34f), 0.20f, 0.0f);
+            floor.GetComponent<Renderer>().sharedMaterial = floorMat;
+
+            // Sun (HDRP intensity in Lux). 정오 햇빛 ~100,000 lux 는 너무 강하므로
+            // 실내 창문 들어오는 일조량 ~30,000 lux 으로 설정.
+            var sunGo = new GameObject("Sun");
+            var sun = sunGo.AddComponent<Light>();
+            sun.type = LightType.Directional;
+            sun.color = new Color(1.0f, 0.97f, 0.93f);
+            sunGo.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
+            var hdSun = sunGo.AddComponent<HDAdditionalLightData>();
+            hdSun.intensity = 30000f;
+            hdSun.lightUnit = LightUnit.Lux;
+            hdSun.SetShadowResolution(2048);
+            hdSun.EnableShadows(true);
+
+            var fillGo = new GameObject("Fill");
             var fill = fillGo.AddComponent<Light>();
             fill.type = LightType.Directional;
-            fill.intensity = 0.4f;
-            fill.color = new Color(0.85f, 0.88f, 1.0f);
+            fill.color = new Color(0.85f, 0.90f, 1.0f);
             fillGo.transform.rotation = Quaternion.Euler(30f, 150f, 0f);
-            // 카메라 — 방의 한쪽 모서리에서 사선으로 내려다보는 구도
-            // 객체가 ±2.5m 안쪽에 분포하므로 코너에서 isometric-ish 로 잡는다.
+            var hdFill = fillGo.AddComponent<HDAdditionalLightData>();
+            hdFill.intensity = 8000f;
+            hdFill.lightUnit = LightUnit.Lux;
+            hdFill.EnableShadows(false);
+
             var camGo = new GameObject("Cam");
             var cam = camGo.AddComponent<Camera>();
-            cam.clearFlags = CameraClearFlags.SolidColor;
-            cam.backgroundColor = new Color(0.10f, 0.12f, 0.16f);
-            cam.fieldOfView = 42f;
+            cam.clearFlags = CameraClearFlags.Skybox;
+            cam.fieldOfView = 50f;
             cam.nearClipPlane = 0.05f;
-            cam.allowHDR = false;
-            camGo.transform.position = new Vector3(3.6f, 3.0f, -3.6f);
-            camGo.transform.LookAt(new Vector3(0f, 0.4f, 0f));
+            // 코너에서 사선으로 잡되 약간 더 멀리 + 위에서 — 객체가 모두 화각에 들어오도록.
+            camGo.transform.position = new Vector3(4.2f, 3.0f, -4.2f);
+            camGo.transform.LookAt(new Vector3(0f, 0.6f, 0.4f));
+            camGo.AddComponent<HDAdditionalCameraData>();
 
-            // 2) 배치 — Resources 프리팹 우선, 실패 시 프리미티브 폴백
             var spawned = new List<GameObject>();
             var assetLoadedFlags = new List<bool>();
+            var diagMessages = new List<string>();
             int loadedCount = 0;
             foreach (var p in spec.placements)
             {
@@ -162,22 +170,41 @@ namespace SplatForge.EditorPaper03
 
                 GameObject go = null;
                 bool loaded = false;
+                string diag = "";
                 string resPath = NormalizeAssetPath(p.assetPath);
+                string slug = ExtractSlug(resPath);
                 if (!string.IsNullOrEmpty(resPath))
                 {
                     var prefab = Resources.Load<GameObject>(resPath);
                     if (prefab != null)
                     {
                         go = UnityEngine.Object.Instantiate(prefab);
-                        // 회전 비정상 방지 (2026-04-29):
-                        //   FBX 임포트 후 root transform 의 잔존 회전을 제거. spec rotation 만 적용한다.
+                        // 회전 정규화: root 만 reset. child transform 은 메시 hierarchy 의
+                        // 일부이므로 건드리면 메시가 무너짐.
                         go.transform.rotation = Quaternion.identity;
-                        // FBX 메시 크기를 spec bounds 에 맞춤
+
                         FitToBounds(go, size);
-                        // 텍스처 표현 보정 (2026-04-29):
-                        //   Polyhaven FBX 가 텍스처 없이 임포트되면 grey 로 보이므로
-                        //   객체별 컬러 PBR Standard 머터리얼을 강제 부여한다.
-                        ApplyPbrTint(go, p.objectName ?? p.objectId ?? p.assetPath);
+
+                        var b = ComputeRendererBounds(go);
+                        // chair/desk 같은 모델이 누워서 임포트되는 사례 보정 — 높이가 가로/세로
+                        // 평균보다 절반 미만이면 누운 상태로 간주.
+                        float avgXZ = (b.size.x + b.size.z) * 0.5f;
+                        if (b.size.y < avgXZ * 0.50f)
+                        {
+                            go.transform.Rotate(-90f, 0f, 0f, Space.World);
+                            diag += "auto_lay_fix:-90X;";
+                            FitToBounds(go, size);
+                        }
+
+                        if (!string.IsNullOrEmpty(slug) && AxisFix.TryGetValue(slug, out var fix))
+                        {
+                            go.transform.Rotate(fix.x, fix.y, fix.z, Space.World);
+                            diag += "override_axis;";
+                            FitToBounds(go, size);
+                        }
+
+                        ApplyHdrpPbr(go, slug, ref diag);
+
                         loaded = true;
                         loadedCount++;
                     }
@@ -186,17 +213,16 @@ namespace SplatForge.EditorPaper03
                 {
                     go = GameObject.CreatePrimitive(PrimitiveType.Cube);
                     go.transform.localScale = size;
-                    ApplyPbrTint(go, p.objectName ?? p.objectId ?? "x");
+                    var mat = MakePlainHdrpLit(CategoryFallbackColor(p.objectName ?? p.objectId ?? "x"), 0.25f, 0.0f);
+                    go.GetComponent<Renderer>().sharedMaterial = mat;
+                    diag += "fallback_cube;";
                 }
                 go.name = string.IsNullOrEmpty(p.objectName) ? p.objectId : p.objectName;
 
-                // 위치 결정: full/random_physics 는 자동 스냅, llm_only 는 spec 그대로
                 float yPos = applyGroundSnap ? (p.position.y + size.y * 0.5f) : p.position.y;
                 go.transform.position = new Vector3(p.position.x, yPos, p.position.z);
-                // 회전: spec.rotation.y 만 사용 (Y-yaw). x/z 는 0 으로 강제하여 뒤집힘 방지.
-                go.transform.eulerAngles = new Vector3(0f, p.rotation.y, 0f);
+                go.transform.Rotate(0f, p.rotation.y, 0f, Space.World);
 
-                // Resources 프리팹은 콜라이더 없을 수 있어 박스콜라이더 강제 추가
                 if (go.GetComponent<Collider>() == null)
                 {
                     var bc = go.AddComponent<BoxCollider>();
@@ -204,11 +230,11 @@ namespace SplatForge.EditorPaper03
                 }
                 spawned.Add(go);
                 assetLoadedFlags.Add(loaded);
+                diagMessages.Add(diag);
             }
 
             Physics.SyncTransforms();
 
-            // 3) 측정
             var perList = new List<PerObject>();
             int groundCount = 0, totalOverlaps = 0;
             for (int i = 0; i < spec.placements.Length; i++)
@@ -251,6 +277,7 @@ namespace SplatForge.EditorPaper03
                     pos_x = go.transform.position.x,
                     pos_y = go.transform.position.y,
                     pos_z = go.transform.position.z,
+                    diag = diagMessages[i],
                 });
             }
 
@@ -284,104 +311,163 @@ namespace SplatForge.EditorPaper03
             EditorApplication.Exit(0);
         }
 
-        // 서버 응답의 assetPath ("furniture/bed_01") 또는 정적 레이아웃의
-        // "MockAssets/bed_01" 모두를 Resources 하위 경로로 정규화한다.
-        // Resources.Load 는 확장자·앞 슬래시 없이 "MockAssets/bed_01" 형태를 요구.
+        // HDRP Volume — Auto-Exposure(Histogram) + ACES.
+        // 빈 씬에서 Auto-Exposure 가 흔들리지 않도록 Histogram percent 를 좁게 잡고,
+        // 노출 보정(compensation)으로 은은하게 밝힘.
+        static void SetupHdrpVolume()
+        {
+            var volGo = new GameObject("GlobalVolume");
+            var vol = volGo.AddComponent<Volume>();
+            vol.isGlobal = true;
+            vol.priority = 0;
+            var profile = ScriptableObject.CreateInstance<VolumeProfile>();
+            vol.sharedProfile = profile;
+
+            var exposure = profile.Add<Exposure>(true);
+            exposure.mode.Override(ExposureMode.Automatic);
+            exposure.meteringMode.Override(MeteringMode.CenterWeighted);
+            exposure.compensation.Override(2.0f);
+            exposure.limitMin.Override(-2f);
+            exposure.limitMax.Override(14f);
+
+            var tone = profile.Add<Tonemapping>(true);
+            tone.mode.Override(TonemappingMode.ACES);
+
+            var ve = profile.Add<VisualEnvironment>(true);
+            ve.skyType.Override((int)SkyType.PhysicallyBased);
+            ve.skyAmbientMode.Override(SkyAmbientMode.Dynamic);
+
+            var pbsky = profile.Add<PhysicallyBasedSky>(true);
+            // 기본값 사용 — Earth-like atmosphere
+        }
+
+        static Material MakePlainHdrpLit(Color baseColor, float smoothness, float metallic)
+        {
+            var sh = Shader.Find("HDRP/Lit");
+            if (sh == null) sh = Shader.Find("Standard");
+            var m = new Material(sh);
+            if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", baseColor);
+            if (m.HasProperty("_Color"))     m.SetColor("_Color", baseColor);
+            if (m.HasProperty("_Smoothness"))m.SetFloat("_Smoothness", smoothness);
+            if (m.HasProperty("_Metallic"))  m.SetFloat("_Metallic", metallic);
+            return m;
+        }
+
+        // PBR 텍스처 → HDRP/Lit 바인딩.
+        // {slug}_diff_2k.jpg   → _BaseColorMap (sRGB)
+        // {slug}_nor_gl_2k.jpg → _NormalMap (Linear)
+        // {slug}_arm_2k.jpg    → _MaskMap (HDRP: R=Metal, G=AO, B=detail, A=Smoothness)
+        //   Polyhaven arm: R=AO, G=Roughness, B=Metal → 채널 재배치.
+        static void ApplyHdrpPbr(GameObject go, string slug, ref string diag)
+        {
+            string polySlug = null;
+            if (!string.IsNullOrEmpty(slug)) SlugToPoly.TryGetValue(slug, out polySlug);
+
+            Texture2D diff = null, nor = null, mask = null;
+            if (!string.IsNullOrEmpty(polySlug))
+            {
+                diff = Resources.Load<Texture2D>($"MockAssets/textures/{polySlug}_diff_2k");
+                nor  = Resources.Load<Texture2D>($"MockAssets/textures/{polySlug}_nor_gl_2k");
+                var arm = Resources.Load<Texture2D>($"MockAssets/textures/{polySlug}_arm_2k");
+                if (arm != null) mask = BuildMaskMapFromArm(arm);
+                string flags = (diff!=null?"d":"") + (nor!=null?"n":"") + (arm!=null?"a":"");
+                diag += "pbr:" + polySlug + "(" + flags + ");";
+            }
+            else
+            {
+                diag += "pbr_no_slug;";
+            }
+
+            var sh = Shader.Find("HDRP/Lit");
+            if (sh == null) { diag += "no_hdrp_lit;"; return; }
+
+            var rends = go.GetComponentsInChildren<Renderer>();
+            foreach (var r in rends)
+            {
+                var m = new Material(sh);
+                if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", Color.white);
+                if (diff != null && m.HasProperty("_BaseColorMap")) m.SetTexture("_BaseColorMap", diff);
+                // Normal/Mask 는 import settings 가 sRGB/Linear 이슈로 색조 왜곡을 일으킬 수
+                // 있어 일단 BaseColor 만 바인딩한다. 시각이 정상이면 단계적으로 normal·mask 추가.
+                // (혹은 .meta 파일 강제 생성으로 textureType=NormalMap, sRGB=false 적용 후 활성화.)
+                if (nor != null && m.HasProperty("_NormalMap")) m.SetTexture("_NormalMap", nor);
+                if (mask != null && m.HasProperty("_MaskMap")) m.SetTexture("_MaskMap", mask);
+                if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", 0.4f);
+                if (m.HasProperty("_Metallic"))   m.SetFloat("_Metallic", 0.0f);
+                r.sharedMaterial = m;
+            }
+        }
+
+        static Texture2D BuildMaskMapFromArm(Texture2D arm)
+        {
+            var rt = RenderTexture.GetTemporary(arm.width, arm.height, 0, RenderTextureFormat.ARGB32);
+            Graphics.Blit(arm, rt);
+            var prev = RenderTexture.active;
+            RenderTexture.active = rt;
+            var src = new Texture2D(arm.width, arm.height, TextureFormat.RGBA32, false, true);
+            src.ReadPixels(new Rect(0, 0, arm.width, arm.height), 0, 0);
+            src.Apply();
+            RenderTexture.active = prev;
+            RenderTexture.ReleaseTemporary(rt);
+
+            var px = src.GetPixels();
+            for (int i = 0; i < px.Length; i++)
+            {
+                float ao    = px[i].r;
+                float rough = px[i].g;
+                float metal = px[i].b;
+                float smooth = 1f - rough;
+                px[i] = new Color(metal, ao, 0f, smooth);
+            }
+            var dst = new Texture2D(arm.width, arm.height, TextureFormat.RGBA32, true, true);
+            dst.SetPixels(px);
+            dst.Apply(true);
+            UnityEngine.Object.DestroyImmediate(src);
+            return dst;
+        }
+
+        static string ExtractSlug(string resPath)
+        {
+            if (string.IsNullOrEmpty(resPath)) return null;
+            int slash = resPath.LastIndexOf('/');
+            return slash < 0 ? resPath : resPath.Substring(slash + 1);
+        }
+
+        static Bounds ComputeRendererBounds(GameObject go)
+        {
+            var rends = go.GetComponentsInChildren<Renderer>();
+            if (rends == null || rends.Length == 0) return new Bounds(go.transform.position, Vector3.one * 0.6f);
+            Bounds b = rends[0].bounds;
+            for (int i = 1; i < rends.Length; i++) b.Encapsulate(rends[i].bounds);
+            return b;
+        }
+
+        static Color CategoryFallbackColor(string nameKey)
+        {
+            string n = (nameKey ?? "").ToLowerInvariant();
+            if (n.Contains("bed") || n.Contains("sofa")) return new Color(0.45f, 0.30f, 0.24f);
+            if (n.Contains("plant")) return new Color(0.22f, 0.45f, 0.25f);
+            if (n.Contains("monitor") || n.Contains("tv")) return new Color(0.10f, 0.10f, 0.12f);
+            return new Color(0.50f, 0.45f, 0.40f);
+        }
+
         static string NormalizeAssetPath(string raw)
         {
             if (string.IsNullOrEmpty(raw)) return null;
             string s = raw.Trim().Replace("\\", "/");
             if (s.StartsWith("/")) s = s.Substring(1);
-            // 카테고리 prefix (furniture/, decorations/) → MockAssets/ 로 치환
             if (s.StartsWith("furniture/") || s.StartsWith("decorations/") || s.StartsWith("decoration/"))
             {
                 int slash = s.IndexOf('/');
                 s = "MockAssets/" + s.Substring(slash + 1);
             }
-            // 그 외 (예: 단일 슬러그) 는 MockAssets/ 접두 추가
             if (!s.StartsWith("MockAssets/")) s = "MockAssets/" + s;
-            // 확장자 제거
             int dot = s.LastIndexOf('.');
             int slashLast = s.LastIndexOf('/');
             if (dot > slashLast) s = s.Substring(0, dot);
             return s;
         }
 
-        // 카테고리별 PBR 색조를 결정.
-        // 그림 7~12 (2026-04-29): Polyhaven FBX 가 텍스처 없이 임포트되면 grey 로
-        // 보이므로 객체 이름 카테고리에 맞춰 색을 부여한다.
-        static void CategoryTint(string nameKey, out Color baseColor, out float smoothness, out float metallic)
-        {
-            string n = (nameKey ?? "").ToLowerInvariant();
-            smoothness = 0.25f;
-            metallic   = 0.0f;
-            if (n.Contains("bed") || n.Contains("sofa") || n.Contains("armchair") || n.Contains("rug"))
-            { baseColor = new Color(0.62f, 0.40f, 0.32f); smoothness = 0.18f; }
-            else if (n.Contains("chair"))
-            { baseColor = new Color(0.30f, 0.32f, 0.36f); smoothness = 0.40f; metallic = 0.20f; }
-            else if (n.Contains("desk") || n.Contains("table") || n.Contains("nightstand") || n.Contains("bookshelf") || n.Contains("wardrobe") || n.Contains("cabinet"))
-            { baseColor = new Color(0.50f, 0.34f, 0.22f); smoothness = 0.30f; }
-            else if (n.Contains("monitor") || n.Contains("tv"))
-            { baseColor = new Color(0.10f, 0.10f, 0.12f); smoothness = 0.65f; metallic = 0.30f; }
-            else if (n.Contains("lamp"))
-            { baseColor = new Color(0.92f, 0.85f, 0.62f); smoothness = 0.55f; metallic = 0.25f; }
-            else if (n.Contains("plant"))
-            { baseColor = new Color(0.22f, 0.50f, 0.28f); smoothness = 0.20f; }
-            else
-            { baseColor = new Color(0.55f, 0.55f, 0.58f); smoothness = 0.30f; }
-            int h = (nameKey ?? "x").GetHashCode();
-            float jitter = (((h >> 4) & 0xFF) / 255f - 0.5f) * 0.10f;
-            baseColor.r = Mathf.Clamp01(baseColor.r + jitter);
-            baseColor.g = Mathf.Clamp01(baseColor.g + jitter);
-            baseColor.b = Mathf.Clamp01(baseColor.b + jitter);
-            // HDRP 톤매핑이 적용되면 sRGB↔linear 변환이 과도하게 옅어짐.
-            // 채도 부스트 — 평균에서 멀수록 더 강조.
-            float avg = (baseColor.r + baseColor.g + baseColor.b) / 3f;
-            baseColor.r = Mathf.Clamp01(avg + (baseColor.r - avg) * 1.6f);
-            baseColor.g = Mathf.Clamp01(avg + (baseColor.g - avg) * 1.6f);
-            baseColor.b = Mathf.Clamp01(avg + (baseColor.b - avg) * 1.6f);
-        }
-
-        // 임포트된 FBX 의 머터리얼을 그대로 두되 Color/Smoothness/Metallic 만 카테고리 톤으로 덮어쓴다.
-        // HDRP 프로젝트에서 Shader.Find("Standard") 가 null 인 점을 회피.
-        static void ApplyPbrTint(GameObject go, string nameKey)
-        {
-            CategoryTint(nameKey, out var baseColor, out var smoothness, out var metallic);
-            var rends = go.GetComponentsInChildren<Renderer>();
-            if (rends == null || rends.Length == 0)
-            {
-                var single = go.GetComponent<Renderer>();
-                if (single != null) TintRenderer(single, baseColor, smoothness, metallic);
-                return;
-            }
-            foreach (var r in rends) TintRenderer(r, baseColor, smoothness, metallic);
-        }
-
-        static void TintRenderer(Renderer r, Color baseColor, float smoothness, float metallic)
-        {
-            // 인스턴스 머터리얼을 만들어 색만 덮어쓴다 — sharedMaterial 을 갈아끼우지 않아 shader 호환성 유지.
-            var mat = r.sharedMaterial;
-            if (mat == null)
-            {
-                // 폴백: HDRP/Lit, URP/Lit, Standard 순서로 시도
-                Shader sh = Shader.Find("HDRP/Lit") ?? Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
-                if (sh == null) return;
-                mat = new Material(sh);
-                r.sharedMaterial = mat;
-            }
-            // 인스턴스화 — 다른 객체 영향 없음
-            var inst = new Material(mat);
-            // HDRP/Lit: _BaseColor, _Smoothness, _Metallic. Standard: _Color, _Glossiness, _Metallic. URP/Lit: _BaseColor, _Smoothness, _Metallic.
-            if (inst.HasProperty("_BaseColor"))  inst.SetColor("_BaseColor", baseColor);
-            if (inst.HasProperty("_Color"))      inst.SetColor("_Color", baseColor);
-            inst.color = baseColor;
-            if (inst.HasProperty("_Smoothness")) inst.SetFloat("_Smoothness", smoothness);
-            if (inst.HasProperty("_Glossiness")) inst.SetFloat("_Glossiness", smoothness);
-            if (inst.HasProperty("_Metallic"))   inst.SetFloat("_Metallic", metallic);
-            r.sharedMaterial = inst;
-        }
-
-        // FBX 인스턴스의 월드 바운드를 spec size 에 맞도록 균등 스케일.
         static void FitToBounds(GameObject go, Vector3 targetSize)
         {
             var rends = go.GetComponentsInChildren<Renderer>();
@@ -393,7 +479,7 @@ namespace SplatForge.EditorPaper03
             float sx = targetSize.x / cur.x;
             float sy = targetSize.y / cur.y;
             float sz = targetSize.z / cur.z;
-            float s  = Mathf.Min(sx, Mathf.Min(sy, sz)); // 비율 유지
+            float s  = Mathf.Min(sx, Mathf.Min(sy, sz));
             go.transform.localScale = go.transform.localScale * s;
         }
 
@@ -454,7 +540,7 @@ namespace SplatForge.EditorPaper03
 
         static void CaptureCamera(Camera cam, string path, int w, int h)
         {
-            var rt = new RenderTexture(w, h, 24);
+            var rt = new RenderTexture(w, h, 24, RenderTextureFormat.DefaultHDR);
             cam.targetTexture = rt;
             var tex = new Texture2D(w, h, TextureFormat.RGB24, false);
             cam.Render();
@@ -463,26 +549,6 @@ namespace SplatForge.EditorPaper03
             tex.Apply();
             cam.targetTexture = null;
             RenderTexture.active = null;
-
-            // 그림 7~12 톤 보정 (2026-04-29):
-            //   HDRP 톤매핑 후 출력이 옅게 나오는 경향 — contrast +35%, gamma 1.15 (어둡게).
-            var pixels = tex.GetPixels();
-            for (int i = 0; i < pixels.Length; i++)
-            {
-                Color c = pixels[i];
-                // gamma >1 = 미드톤 어둡게 → 채도 회복
-                c.r = Mathf.Pow(c.r, 1.15f);
-                c.g = Mathf.Pow(c.g, 1.15f);
-                c.b = Mathf.Pow(c.b, 1.15f);
-                // contrast around 0.45
-                c.r = Mathf.Clamp01((c.r - 0.45f) * 1.35f + 0.45f);
-                c.g = Mathf.Clamp01((c.g - 0.45f) * 1.35f + 0.45f);
-                c.b = Mathf.Clamp01((c.b - 0.45f) * 1.35f + 0.45f);
-                pixels[i] = c;
-            }
-            tex.SetPixels(pixels);
-            tex.Apply();
-
             File.WriteAllBytes(path, tex.EncodeToPNG());
             UnityEngine.Object.DestroyImmediate(tex);
             UnityEngine.Object.DestroyImmediate(rt);
