@@ -432,6 +432,12 @@ hloc 파이프라인이 SfM 단계를 절반 시간으로 단축하면서도 등
 
 요컨대, LLM의 점-particle 추론 오차는 부피 인식 prior의 부재에서 비롯되는 체계적 편향이며, OverlapBox 기반 iterative push-out은 이 편향을 측정 가능한 수준으로 보정하는 후처리 단계로 위치된다. 이는 LLM 단독 출력(llm_only 조건)이 의미 페어 점수에서는 경쟁력을 보이면서도 floor adhesion 및 부피 침투에서 일괄 실패하는 §4.5 절제 결과와도 부합한다.
 
+#### 4.3.3. 3DGS 자산 시각화 범위와 측정 자동화 한계
+
+본 §4.3 그림 7~12 및 §4.4 sweep 측정에서 시각화한 자산은 모두 mesh(Polyhaven CC0 + Kenney CC0 mesh)이며, 3DGS 자산은 시각화에 포함하지 않았다. 이는 본 측정 자동화 파이프라인(Unity 6000.3.6f1 + HDRP, batchmode 단일 `Camera.Render()` 호출)이 HDRP CustomPassVolume 경로를 거쳐 GaussianSplatRenderer 의 색상 합성 단계를 정상적으로 종결하지 못하는 통합 한계를 본 연구에서 직접 확인했기 때문이다. 구체적으로 `GS_ENABLE_HDRP` scripting define 활성화, GaussianSplatHDRPPass 등록, 셰이더·ComputeShader 바인딩, `EnsureSorterAndRegister()` 강제 호출까지 모든 사전 조건을 충족시킨 상태에서도 batchmode 단일 프레임 렌더 결과가 cleared 색상 버퍼로 반환되었다. 본 한계의 근본 원인은 §6.2의 batchmode 통합 한계 항목에서 별도로 정리한다.
+
+본 연구의 3DGS 통합 자체의 시각적 정합성은 §3.3에서 인용한 KIRI Engine + UnityGaussianSplatting 워크플로우 출력(paper02-04 [56])의 디지털 조형물 사례를 통해 검증된 바 있으며, §4.3 정성 평가의 범위는 LLM 의미 배치와 LayoutValidator 물리 검증의 효과성에 한정한다. 후속 연구에서는 manual GameView 캡처 또는 URP 경로로의 이행으로 3DGS 자산을 동일한 자동화 sweep에 포함하는 방향을 추진한다.
+
 ### 4.4. 정량적 분석
 
 저작 시간과 배치 정확도 두 축으로 측정하였다. 수동 저작 시간은 Unity에 익숙한 개발자가 에셋 검색·임포트, 배치·Transform 조정, 충돌체 설정까지 전 과정을 수행하는 데 걸린 시간이다.
@@ -627,6 +633,8 @@ LLM의 공간 추론은 직사각형 방에서는 무난했으나, L자형 방�
 본 측정에서 living_room 시나리오의 full pipeline 모드는 Floor Adhesion 0%, Semantic Proximity 0의 실패 사례를 보였다(표 4a·6, 그림 9). 이는 다음 세 요인의 복합 작용으로 추정된다. 첫째, 본 실험에서 사용한 자산 카탈로그(Polyhaven CC0 + Kenney CC0 mesh)가 living_room 의미 페어(예: TV-소파 거리, 러그-가구 정렬)를 정의한 canonical 휴리스틱과 정합하지 않은 점. 둘째, FBX 피벗이 객체 중심에 위치하여 ground-snap 시 객체 절반이 바닥 아래로 들어간 점. 셋째, bedroom·office 대비 더 많은 자산(8개)이 좁은 공간에 배치되어 충돌 처리 우선이 의미 페어 검출을 압도한 점이다. 후속 작업에서 (1) 자산별 피벗 자동 보정, (2) 시나리오별 canonical pair 휴리스틱 일반화, (3) 좁은 공간에서의 우선순위 정책 개선(충돌 기각 시 의미 페어 점수 가중치 회귀)을 통해 해소할 예정이다.
 
 3DGS 객체의 정적 특성도 제약이다. 질량이나 마찰 같은 물리적 속성을 3DGS에 직접 부여하는 것은 현재 불가능하고, 프록시 충돌체를 통한 간접적 상호작용만 된다. PhysGaussian(Xie et al., 2024)[16]처럼 가우시안에 연속체 역학을 입히거나 PhysSplat(Zhao et al., 2025)[35]처럼 MLLM으로 물성 파라미터를 추정하는 연구, 나아가 GASP(Borycki et al., 2025)[52]처럼 가우시안 파라미터화 자체를 물리 엔진에 직접 연결하는 시도가 성숙하면 상황이 달라질 수 있다. 특히 GASP 계열은 Raycast 프록시 충돌체를 우회해 3DGS 네이티브 물리를 지향한다는 점에서, 본 연구의 하이브리드 접근이 가진 간접성의 근본적 해소 방향을 제시한다.
+
+본 측정 자동화 파이프라인이 HDRP CustomPassVolume + GaussianSplatHDRPPass 경로를 batchmode 환경에서 종결시키지 못한 통합 한계도 별도로 기록한다. Unity 6000.3.6f1 + UnityGaussianSplatting 1.1.1 + HDRP 17.x 조합에서 `GS_ENABLE_HDRP` scripting define 활성화, GaussianSplatRenderer 셰이더·ComputeShader 인스펙터 기본값 코드 바인딩, GaussianSplatHDRPPass 등록(internal 클래스를 `Type.GetType` 으로 동적 로드), `EnsureSorterAndRegister()` 강제 호출까지 모든 사전 조건을 충족시킨 상태에서도 단일 `Camera.Render()` 호출로 캡처한 결과가 cleared 색상 버퍼(전 픽셀 (0,0,0))로 반환되었다. 동일 파이프라인은 mesh 자산만 포함했을 때는 정상 PBR 렌더링을 산출하므로, 본 한계는 batchmode 단일 프레임 렌더 경로가 HDRP custom pass 의 RT 합성을 종결하지 못하는 데서 비롯된 것으로 분석된다(GameView 다중 프레임 렌더 루프에서는 동일 코드가 정상 동작함을 §3.3 인용 사례가 시사한다). 후속 작업에서는 (1) manual GameView 캡처(LaunchAgent 기반 비-batchmode 자동화), (2) URP 경로(GaussianSplatURPFeature)로의 이행, (3) batchmode `EditorApplication.Step()` 다중 프레임 priming 의 세 갈래로 해소를 시도할 예정이다.
 
 확장성 문제도 있다. 현재 파이프라인은 방 하나 단위에 맞춰져 있다. 건물이나 도시 규모로 가려면 3DGS 에셋의 LOD 관리, 스트리밍 로딩, 절두체 기반 선택적 렌더링이 필수적이고, LLM의 추론 범위 역시 복수 방 이상으로 넓혀야 한다. LS-Gaussian(Wei et al., 2025) 같은 경량 스트리밍 프레임워크와의 통합이 이 방향의 출발점이 될 수 있다.
 
