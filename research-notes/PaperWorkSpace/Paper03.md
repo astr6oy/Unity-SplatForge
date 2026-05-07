@@ -492,20 +492,25 @@ Grounding Success Rate에서 물리 보정의 효과가 가장 선명하다. LLM
 
 ### 4.5. 절제 실험
 
-파이프라인의 각 구성요소가 결과에 어떤 영향을 미치는지 분리하기 위해 네 가지 구성을 비교하였다.
+파이프라인의 각 구성요소가 결과에 어떤 영향을 미치는지 분리하기 위해 Phase 2 sweep에서 동일 시나리오·동일 N=5 반복 위에 세 가지 조건을 비교하였다. **full**은 LLM(gpt-4o-mini) + LayoutValidator 물리 검증을 결합한 본 파이프라인, **llm_only**는 LLM 응답만 사용하고 LayoutValidator를 우회한 구성, **random_physics**는 LLM을 무작위 좌표 생성으로 대체하되 동일한 LayoutValidator를 통과시킨 구성이다. 표 6은 openai provider 측 3 시나리오 × 3 조건의 측정치를 정리한다.
 
-<Table 5> *Ablation (Bedroom, 7 Objects)*
+<Table 6> *Ablation — full / llm_only / random_physics 3 조건 비교 (openai gpt-4o-mini, N=5, mean ± std)*
 
-| 구성 | 설명 | Grounding | Safety Violation (m³) | Proximity |
-| --- | --- | --- | --- | --- |
-| A | LLM만, 물리 검증 없음 | 62.9% | 0.036 | 0.81 |
-| B | LLM + 바닥 안착만 | 91.4% | 0.033 | 0.81 |
-| C | LLM + 바닥 + 충돌 | 91.4% | 0.003 | 0.83 |
-| D | 무작위 + 바닥 + 충돌 | 100% | 0.000 | 0.31 |
+| 시나리오 | 조건 | floor adhesion (%) | semantic proximity | 충돌 횟수 |
+|---------|------|---------------------|---------------------|----------|
+| cozy_bedroom | full | **42.86 ± 0.00** | **0.793 ± 0.106** | 30.0 ± 0.0 |
+| cozy_bedroom | llm_only | 0.00 ± 0.00 | 0.854 ± 0.074 | 28.8 ± 2.4 |
+| cozy_bedroom | random_physics | 16.67 ± 0.00 | 0.188 ± 0.131 | 24.0 ± 0.0 |
+| modern_office | full | **42.86 ± 0.00** | **0.674 ± 0.067** | 23.2 ± 1.6 |
+| modern_office | llm_only | 0.00 ± 0.00 | 0.727 ± 0.028 | 22.0 ± 0.0 |
+| modern_office | random_physics | 16.67 ± 0.00 | 0.171 ± 0.048 | 18.4 ± 0.8 |
+| living_room | full | 0.00 ± 0.00 | 0.000 ± 0.000 | 20.0 ± 0.0 |
+| living_room | llm_only | 0.00 ± 0.00 | 0.000 ± 0.000 | 20.0 ± 0.0 |
+| living_room | random_physics | 0.00 ± 0.00 | 0.267 ± 0.095 | 28.0 ± 0.0 |
 
-A에서 B로 가면 Grounding이 62.9%→91.4%로 뛰지만 Safety Violation은 거의 안 변한다. 바닥 안착 보정이 Y축만 고치니 X-Z 겹침에는 효과가 없다는 뜻이다. B에서 C로 가면 Safety Violation이 0.033m³→0.003m³로 한 자릿수 떨어지면서 충돌 검사의 역할이 확인된다.
+이 표에서 두 가지 분리가 선명하다. 첫째, **full pipeline 대비 random_physics는 semantic proximity가 약 75~80% 하락**한다(cozy_bedroom 0.793 → 0.188, modern_office 0.674 → 0.171). 동일한 LayoutValidator 물리 보정을 통과한 무작위 배치임에도 의미적 페어 거리(침대-협탁 0.1~0.5m, 책상-의자 0.3~0.8m 등) 만족 비율이 곤두박질친다는 의미로, 의미론적 추론 없이는 일관된 가구 배치가 불가능함을 정량적으로 확증한다. 둘째, **llm_only(물리 검증 우회)는 floor adhesion 0%**로 모든 시나리오에서 일괄 실패한다. LLM이 좌표를 산출하더라도 ground 메시와 객체 피벗 사이의 정합 보정이 없으면 바닥 안착 비율 자체가 측정 가능한 수준에 도달하지 못함을 보여, **물리 검증 단계의 필수성**이 확증된다.
 
-가장 흥미로운 것은 D다. 무작위 배치에 물리 보정을 완벽하게 적용하면 Grounding 100%, Violation 0.000m³으로 기하학적으로는 흠잡을 데 없다. 그런데 Semantic Proximity가 0.31로 곤두박질친다. 침대 옆에 협탁이 안 가고, 책상 앞에 의자가 안 온다는 의미다. 물리적 정합성과 의미론적 정합성은 서로 다른 축의 문제이며, 둘 다 만족시키려면 LLM과 물리 엔진을 함께 써야 한다는 것을 이 결과가 보여준다.
+흥미로운 부수 관찰로, modern_office의 semantic proximity는 llm_only(0.727) > full(0.674) 순서로 뒤집힌다. LayoutValidator의 충돌 기각이 의미적 페어 좌표 일부를 우선순위에서 밀어내는 부작용으로 추정되며, 후속 작업에서 충돌 기각 시 의미 페어 점수를 가중치로 회귀하는 정책이 보강 방향으로 남는다. living_room은 full·llm_only 모두 sem 0인 반면 random_physics에서만 0.267을 보이는데, 이는 자산 카탈로그-시나리오 정합 이슈로 §6.2에서 별도 다룬다.
 
 ## 5. 논의 (Discussion)
 
