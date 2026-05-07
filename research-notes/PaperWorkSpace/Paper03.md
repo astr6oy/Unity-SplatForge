@@ -436,7 +436,21 @@ hloc 파이프라인이 SfM 단계를 절반 시간으로 단축하면서도 등
 
 본 §4.3 그림 7~12 및 §4.4 sweep 측정에서 시각화한 자산은 모두 mesh(Polyhaven CC0 + Kenney CC0 mesh)이며, 3DGS 자산은 시각화에 포함하지 않았다. 이는 본 측정 자동화 파이프라인(Unity 6000.3.6f1 + HDRP, batchmode 단일 `Camera.Render()` 호출)이 HDRP CustomPassVolume 경로를 거쳐 GaussianSplatRenderer 의 색상 합성 단계를 정상적으로 종결하지 못하는 통합 한계를 본 연구에서 직접 확인했기 때문이다. 구체적으로 `GS_ENABLE_HDRP` scripting define 활성화, GaussianSplatHDRPPass 등록, 셰이더·ComputeShader 바인딩, `EnsureSorterAndRegister()` 강제 호출까지 모든 사전 조건을 충족시킨 상태에서도 batchmode 단일 프레임 렌더 결과가 cleared 색상 버퍼로 반환되었다. 본 한계의 근본 원인은 §6.2의 batchmode 통합 한계 항목에서 별도로 정리한다.
 
-본 연구의 3DGS 통합 자체의 시각적 정합성은 §3.3에서 인용한 KIRI Engine + UnityGaussianSplatting 워크플로우 출력(paper02-04 [56])의 디지털 조형물 사례를 통해 검증된 바 있으며, §4.3 정성 평가의 범위는 LLM 의미 배치와 LayoutValidator 물리 검증의 효과성에 한정한다. 후속 연구에서는 manual GameView 캡처 또는 URP 경로로의 이행으로 3DGS 자산을 동일한 자동화 sweep에 포함하는 방향을 추진한다.
+본 연구의 3DGS 통합 자체의 시각적 정합성은 (a) §3.3에서 인용한 KIRI Engine + UnityGaussianSplatting 워크플로우 출력(paper02-04 [56])의 디지털 조형물 사례, 그리고 (b) 본 연구에서 추가 검증한 그림 13~15(unity-lab 인터랙티브 환경 PlayMode 캡처)를 통해 두 단계로 검증되었다. 그림 13은 단일 3DGS 자산(Statue)의 HDRP 환경 정상 렌더, 그림 14는 mesh 의자 위에 3DGS Statue를 배치한 hybrid 합성 결과, 그림 15는 mesh 소파 위에 3DGS Statue를 배치한 또 다른 hybrid 사례로, §3.4 HybridSceneObject 설계의 mesh+splat 혼합이 동일 씬에서 정상 작동함을 시각적으로 입증한다.
+
+§4.3 정성 평가의 범위는 LLM 의미 배치와 LayoutValidator 물리 검증의 효과성에 한정하며, 자동화 sweep 단계에서 3DGS 자산을 mesh 자산과 동일하게 포함시키는 작업은 후속 연구에서 추진한다(URP 경로 이행 또는 batchmode + PlayMode 패턴 정착).
+
+![그림 13. 본 연구 추가 검증 — HDRP 환경에서 단일 3DGS 자산(KIRI Engine Statue) 렌더 결과 (unity-lab 인터랙티브 환경 PlayMode 캡처)](figures/exp-3dgs-statue.png)
+
+*그림 13. 단일 3DGS 자산(Statue)의 HDRP 정상 렌더 — HDRP CustomPassVolume + GaussianSplatHDRPPass 동작 확인.*
+
+![그림 14. mesh 의자 위에 3DGS Statue를 배치한 hybrid 합성 — HybridSceneObject 설계의 mesh+splat 혼합 검증](figures/exp-3dgs-hybrid-chair.png)
+
+*그림 14. mesh 의자 + 3DGS Statue hybrid 합성 — §3.4 HybridSceneObject 설계 시각 검증.*
+
+![그림 15. mesh 소파 위에 3DGS Statue를 배치한 hybrid 합성 — 다른 mesh 자산과의 합성 일관성 확인](figures/exp-3dgs-hybrid-sofa.png)
+
+*그림 15. mesh 소파 + 3DGS Statue hybrid 합성 — mesh 자산 종류 변경 시에도 동일한 hybrid 합성이 유지됨.*
 
 ### 4.4. 정량적 분석
 
