@@ -82,7 +82,7 @@ namespace SplatForge.EditorPaper03
             { "chair_01",       "mid_century_lounge_chair" },
             { "lamp_01",        "desk_lamp_arm_01" },
             { "bookshelf_01",   "Shelf_01" },
-            { "plant_01",       "nettle_plant" },
+            { "plant_01",       "potted_plant_01" },
             { "sofa_01",        "Sofa_01" },
             { "table_01",       "coffee_table_round_01" },
             { "cabinet_01",     "modern_wooden_cabinet" },
@@ -91,22 +91,172 @@ namespace SplatForge.EditorPaper03
         };
 
         // Per-asset 회전 보정 (Euler X,Y,Z degrees, world space).
-        // FBX inspector (Tools/Inspect FBX Bounds) 로 측정한 자연 bounds 결과:
-        //   bookshelf_01: Y=0.26, Z=2.08 → 누워서 임포트. +90° X 로 세움.
-        //   plant_01    : X=1.08, Y=0.22 → 누움. +90° Z 로 세움.
-        //   cabinet_01  : X=2.44, Y=0.68 → 누움. +90° X 로 세움.
-        //   nightstand_01: Y=0.42, Z=0.70 → 가벼운 누움. +90° X 로 세움.
-        //   table_01    : Y=1.30 (Z=0.49) → 세워져 있어 보이지만 round table 의 회전축
-        //                  이 천장을 향한 형태 (typical FBX). +90° X 로 눕혀 정상 테이블.
-        //   bed_01, chair_01, lamp_01, sofa_01, wardrobe_01, monitor_01, tv_01, rug_01, desk_01
-        //   는 자연 Y 축이 정상 — 보정 불필요.
+        // 2026-05-07 (R2 vision diagnostic 후): Alfred Opus 4.7 시각 검토 기반 갱신.
+        //   bookshelf_01: 유지 (90,0,0) — 정상 세워짐.
+        //   plant_01    : 제거 — potted_plant_01 (Y-up 자연, scale 자연 1.4m).
+        //   cabinet_01  : (90,0,0) → (0,0,0) — 90° X 가 오히려 눕힘. 원본 그대로.
+        //   nightstand_01: 유지 (90,0,0) — 시각 정상.
+        //   table_01    : 유지 (90,0,0) — round table 정상.
+        //   bed_01      : 신규 (90,0,0) — 벽처럼 수직 → 눕힘.
+        //   chair_01    : R2 (90,0,0) — R1 -90X 가 거꾸로 뒤집음 → 180° 보정.
+        //   sofa_01     : 신규 (90,0,0) — 등받이 위로 향함 → 세움.
         static readonly Dictionary<string, Vector3> AxisFix = new Dictionary<string, Vector3> {
             { "bookshelf_01",  new Vector3( 90f, 0f, 0f) },
-            { "plant_01",      new Vector3(  0f, 0f, 90f) },
-            { "cabinet_01",    new Vector3( 90f, 0f, 0f) },
             { "nightstand_01", new Vector3( 90f, 0f, 0f) },
             { "table_01",      new Vector3( 90f, 0f, 0f) },
+            { "bed_01",        new Vector3( 90f, 0f, 0f) },
+            { "chair_01",      new Vector3( 90f, 0f, 0f) },
+            { "sofa_01",       new Vector3( 90f, 0f, 0f) },
         };
+
+        // Per-asset 스케일 보정 (R2 진단 후 추가). instantiate 직후, ground-snap 전에 적용.
+        // bounds 측정이 스케일된 결과 사용하도록 순서가 중요하다.
+        //   plant_01 : 제거 — potted_plant_01 자연 높이 1.4m 사용.
+        //   monitor_01: bounds 3.93m → ~0.7m 으로 축소 (0.18배).
+        //   rug_01   : bounds 15.7m → ~3.5m 으로 축소 (0.22배).
+        //   cabinet_01: R2 0.5배 — 너무 넓음 (~4m → ~2m).
+        static readonly Dictionary<string, float> ASSET_SCALES = new Dictionary<string, float> {
+            { "monitor_01", 0.18f },
+            { "rug_01",     0.22f },
+            { "cabinet_01", 0.5f  },
+        };
+
+        // ====================================================================
+        // RunSingleAsset — 자산 격리 렌더 (디버깅용, 2026-04-29 추가)
+        //   목적: 회전·시각 문제를 자산별 1매 PNG 로 진단.
+        //   동일한 룸/조명/HDRP 설정을 유지하되 자산은 origin (0,0,0) 1개만 배치.
+        //   카메라는 자산 영웅샷용으로 더 가까이 (1.5, 1.5, -2.5) FOV 35.
+        // ====================================================================
+        public static void RunSingleAsset()
+        {
+            string assetName = GetArg("-asset");
+            string outputPath = GetArg("-output");
+            if (string.IsNullOrEmpty(assetName) || string.IsNullOrEmpty(outputPath))
+            {
+                Debug.LogError("[Paper03/Iso] missing -asset or -output");
+                EditorApplication.Exit(2);
+                return;
+            }
+            Directory.CreateDirectory(Path.GetDirectoryName(outputPath));
+
+            var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            SetupHdrpVolume();
+
+            // 룸: 4×4 바닥 + 3 벽 (full mode 와 동일).
+            const float ROOM_W = 4f, ROOM_D = 4f, WALL_H = 2.5f, WALL_T = 0.05f;
+
+            var floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            floor.name = "Floor";
+            floor.transform.localScale = new Vector3(ROOM_W, 0.05f, ROOM_D);
+            floor.transform.position = new Vector3(0, -0.025f, 0);
+            var floorMat = MakePlainHdrpLit(new Color(0.55f, 0.42f, 0.30f), 0.30f, 0.0f);
+            floor.GetComponent<Renderer>().sharedMaterial = floorMat;
+
+            var wallMat = MakePlainHdrpLit(new Color(0.94f, 0.93f, 0.90f), 0.10f, 0.0f);
+            var backWall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            backWall.name = "BackWall";
+            backWall.transform.localScale = new Vector3(ROOM_W, WALL_H, WALL_T);
+            backWall.transform.position = new Vector3(0, WALL_H * 0.5f, ROOM_D * 0.5f);
+            backWall.GetComponent<Renderer>().sharedMaterial = wallMat;
+
+            var leftWall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            leftWall.name = "LeftWall";
+            leftWall.transform.localScale = new Vector3(WALL_T, WALL_H, ROOM_D);
+            leftWall.transform.position = new Vector3(-ROOM_W * 0.5f, WALL_H * 0.5f, 0);
+            leftWall.GetComponent<Renderer>().sharedMaterial = wallMat;
+
+            var rightWall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            rightWall.name = "RightWall";
+            rightWall.transform.localScale = new Vector3(WALL_T, WALL_H, ROOM_D);
+            rightWall.transform.position = new Vector3(ROOM_W * 0.5f, WALL_H * 0.5f, 0);
+            rightWall.GetComponent<Renderer>().sharedMaterial = wallMat;
+
+            // 조명 — full mode 와 동일 Sun + Fill.
+            var sunGo = new GameObject("Sun");
+            var sun = sunGo.AddComponent<Light>();
+            sun.type = LightType.Directional;
+            sun.color = new Color(1.0f, 0.97f, 0.93f);
+            sunGo.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
+            var hdSun = sunGo.AddComponent<HDAdditionalLightData>();
+            hdSun.intensity = 30000f;
+            hdSun.lightUnit = LightUnit.Lux;
+            hdSun.SetShadowResolution(2048);
+            hdSun.EnableShadows(true);
+
+            var fillGo = new GameObject("Fill");
+            var fill = fillGo.AddComponent<Light>();
+            fill.type = LightType.Directional;
+            fill.color = new Color(0.85f, 0.90f, 1.0f);
+            fillGo.transform.rotation = Quaternion.Euler(30f, 150f, 0f);
+            var hdFill = fillGo.AddComponent<HDAdditionalLightData>();
+            hdFill.intensity = 8000f;
+            hdFill.lightUnit = LightUnit.Lux;
+            hdFill.EnableShadows(false);
+
+            // 카메라 — 영웅샷 (자산 클로즈업).
+            var camGo = new GameObject("Cam");
+            var cam = camGo.AddComponent<Camera>();
+            cam.clearFlags = CameraClearFlags.Skybox;
+            cam.fieldOfView = 35f;
+            cam.nearClipPlane = 0.05f;
+            camGo.transform.position = new Vector3(1.5f, 1.5f, -2.5f);
+            camGo.transform.LookAt(new Vector3(0f, 0.5f, 0f));
+            camGo.AddComponent<HDAdditionalCameraData>();
+
+            // 자산 1개 인스턴스 — origin 배치, FitToBounds 생략 (원본 스케일 유지).
+            string resPath = "MockAssets/" + assetName;
+            var prefab = Resources.Load<GameObject>(resPath);
+            string diag = "";
+            GameObject go = null;
+            if (prefab == null)
+            {
+                Debug.LogError($"[Paper03/Iso] asset not found: {resPath}");
+                // 자산 없으면 fallback cube 로 진행 (PNG 는 생성).
+                go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                go.transform.localScale = new Vector3(0.6f, 0.6f, 0.6f);
+                var fm = MakePlainHdrpLit(new Color(0.8f, 0.2f, 0.2f), 0.25f, 0.0f);
+                go.GetComponent<Renderer>().sharedMaterial = fm;
+                diag = "asset_missing;";
+            }
+            else
+            {
+                go = UnityEngine.Object.Instantiate(prefab);
+                go.transform.rotation = Quaternion.identity;
+
+                // AxisFix 적용 (full mode 와 동일).
+                if (AxisFix.TryGetValue(assetName, out var fix))
+                {
+                    go.transform.Rotate(fix.x, fix.y, fix.z, Space.World);
+                    diag += "axisfix;";
+                }
+
+                // ASSET_SCALES 적용 — ground-snap 전에 수행해야 bounds 가 정확.
+                if (ASSET_SCALES.TryGetValue(assetName, out var scl))
+                {
+                    go.transform.localScale *= scl;
+                    diag += $"scale:{scl};";
+                }
+
+                ApplyHdrpPbr(go, assetName, ref diag);
+            }
+            go.name = assetName;
+
+            // origin 배치 + ground-snap (Renderer.bounds.min.y = 0).
+            go.transform.position = Vector3.zero;
+            var rb = ComputeRendererBounds(go);
+            float dy = -rb.min.y;
+            go.transform.position += new Vector3(0f, dy, 0f);
+
+            Physics.SyncTransforms();
+
+            // 디버그 정보 — bounds 측정 후 Console 에 dump.
+            var rbAfter = ComputeRendererBounds(go);
+            Debug.Log($"[Paper03/Iso] asset={assetName} pos=({go.transform.position.x:F3},{go.transform.position.y:F3},{go.transform.position.z:F3}) bounds_size=({rbAfter.size.x:F3},{rbAfter.size.y:F3},{rbAfter.size.z:F3}) bounds_min=({rbAfter.min.x:F3},{rbAfter.min.y:F3},{rbAfter.min.z:F3}) diag={diag}");
+
+            CaptureCamera(cam, outputPath, 1280, 720);
+            Debug.Log($"[Paper03/Iso] DONE asset={assetName} png={outputPath}");
+            EditorApplication.Exit(0);
+        }
 
         public static void Run()
         {
@@ -243,6 +393,14 @@ namespace SplatForge.EditorPaper03
                             go.transform.Rotate(fix.x, fix.y, fix.z, Space.World);
                             diag += "override_axis;";
                             FitToBounds(go, size);
+                        }
+
+                        // ASSET_SCALES — FitToBounds 후 적용 (FitToBounds 가 균일 스케일을
+                        // 강제하므로 추가 보정으로 의도된 비율 부여). ground-snap 전에 수행.
+                        if (!string.IsNullOrEmpty(slug) && ASSET_SCALES.TryGetValue(slug, out var scl))
+                        {
+                            go.transform.localScale *= scl;
+                            diag += $"scale:{scl};";
                         }
 
                         ApplyHdrpPbr(go, slug, ref diag);
