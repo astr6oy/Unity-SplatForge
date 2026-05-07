@@ -1,15 +1,16 @@
 // Paper03Runner.cs — batchmode entry for Paper03 experiment
 //
-// 그림 7~12 정식 PBR 렌더 파이프라인 (2026-05-07 재작성, v3 회전·룸 보정):
+// 그림 7~12 정식 PBR 렌더 파이프라인 (2026-05-07 v4 — 시나리오별 룸·iterative 충돌 해소·시점 보정):
 //   (1) Polyhaven 동봉 PBR 텍스처(diff/nor_gl/arm)를 HDRP/Lit Material 에 직접 바인딩
-//   (2) HDRP Volume(Exposure + Tonemapping ACES) + Directional Sun(Lux) 으로
-//       카메라가 받는 노출을 결정. tint/contrast/gamma 후처리 없음.
-//   (3) 회전 근본 보정 (2026-05-07): auto_lay_fix 휴리스틱 제거
-//       (rug/tv 처럼 본질적으로 평평한 객체를 잘못 세움). 대신 spec.position.y 를
-//       0 으로 클램프하고 ground-snap 이 실제 Renderer.bounds.size.y 를 사용해 바닥에
-//       정확히 안착시킨다.
-//   (4) 3 벽 + 4×4 바닥 procedural 추가 + 카메라 외부 시점 (diorama 스타일).
-//       furniture 좌표는 (-1.7..1.7) 로 클램프해 벽 안쪽에 배치.
+//   (2) HDRP Volume(Exposure + Tonemapping ACES) + Directional Sun(Lux)
+//   (3) 회전 근본 보정: auto_lay_fix 휴리스틱 제거. spec.position.y → 0 클램프 +
+//       ground-snap 이 실제 Renderer.bounds.size.y 사용.
+//   (4) v4 시나리오별 룸 (T1): bedroom/office 3.0×3.0m, living_room 3.5×3.5m, 벽 H=2.5m.
+//   (5) v4 §3.4 iterative push-out (T2): ground-snap 후 OverlapBox pair-wise 검사,
+//       작은 객체를 큰 객체로부터 half-overlap 만큼 XZ 평면에서 밀어냄. 최대 10회 반복.
+//       resolved_overlaps 카운트를 metric JSON 에 기록.
+//   (6) v4 카메라 (T3): pos (0, 3.5, -3.0), LookAt (0, 0.4, 0), FOV 55 — diorama
+//       elevated angle 로 객체 배치를 위에서 비스듬히 내려다본다.
 
 using System;
 using System.Collections.Generic;
@@ -66,6 +67,7 @@ namespace SplatForge.EditorPaper03
             public int ground_contact_count;
             public float floor_adhesion_pct;
             public int total_collisions;
+            public int resolved_overlaps;
             public float semantic_proximity;
             public float wall_clock_ms;
             public string render_path;
@@ -284,12 +286,32 @@ namespace SplatForge.EditorPaper03
 
             SetupHdrpVolume();
 
-            // 4×4 바닥 + 3 벽 (back, left, right) procedural diorama.
-            // 정면 벽은 카메라 시야를 위해 생략. 천장도 생략.
-            const float ROOM_W = 4f;          // 가로(x)
-            const float ROOM_D = 4f;          // 세로(z)
-            const float WALL_H = 2.5f;        // 벽 높이
-            const float WALL_T = 0.05f;       // 벽 두께
+            // T1 (2026-05-07 v4) — 시나리오별 룸 크기. 마스터 지시:
+            //   bedroom : 3.0×3.0m  → CLAMP ±1.4
+            //   office  : 3.0×3.0m  → CLAMP ±1.4
+            //   living  : 3.5×3.5m  → CLAMP ±1.65
+            //   기타    : 4.0×4.0m fallback (기존 동작 유지) → CLAMP ±1.7
+            // 벽 높이 2.5m 고정. 벽 두께 0.05m. CLAMP 는 벽 안쪽 0.1m 마진까지 흡수.
+            float ROOM_W, ROOM_D;
+            float CLAMP_X, CLAMP_Z;
+            string scn = (spec.scenario ?? "").ToLowerInvariant();
+            if (scn == "cozy_bedroom" || scn == "modern_office")
+            {
+                ROOM_W = 3.0f; ROOM_D = 3.0f;
+                CLAMP_X = 1.4f; CLAMP_Z = 1.4f;
+            }
+            else if (scn == "living_room")
+            {
+                ROOM_W = 3.5f; ROOM_D = 3.5f;
+                CLAMP_X = 1.65f; CLAMP_Z = 1.65f;
+            }
+            else
+            {
+                ROOM_W = 4.0f; ROOM_D = 4.0f;
+                CLAMP_X = 1.7f; CLAMP_Z = 1.7f;
+            }
+            const float WALL_H = 2.5f;
+            const float WALL_T = 0.05f;
 
             var floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
             floor.name = "Floor";
@@ -318,9 +340,7 @@ namespace SplatForge.EditorPaper03
             rightWall.transform.position = new Vector3(ROOM_W * 0.5f, WALL_H * 0.5f, 0);
             rightWall.GetComponent<Renderer>().sharedMaterial = wallMat;
 
-            // furniture 클램프 영역 — 벽에서 0.3m 이상 안쪽.
-            const float CLAMP_X = ROOM_W * 0.5f - 0.3f;
-            const float CLAMP_Z = ROOM_D * 0.5f - 0.3f;
+            // furniture 클램프 영역은 위 시나리오별 분기에서 결정됨.
 
             // Sun (HDRP intensity in Lux). 정오 햇빛 ~100,000 lux 는 너무 강하므로
             // 실내 창문 들어오는 일조량 ~30,000 lux 으로 설정.
@@ -345,14 +365,16 @@ namespace SplatForge.EditorPaper03
             hdFill.lightUnit = LightUnit.Lux;
             hdFill.EnableShadows(false);
 
+            // T3 (v4) — elevated diorama. 위에서 비스듬히 내려다보는 시점으로
+            //   객체 배치(특히 가구 사이 공간)을 더 명확히 보여준다.
+            //   pos (0, 3.5, -3.0), LookAt (0, 0.4, 0), FOV 55.
             var camGo = new GameObject("Cam");
             var cam = camGo.AddComponent<Camera>();
             cam.clearFlags = CameraClearFlags.Skybox;
-            cam.fieldOfView = 50f;
+            cam.fieldOfView = 55f;
             cam.nearClipPlane = 0.05f;
-            // 정면 벽이 없는 쪽(z<0)에서 약간 위에서 룸 안쪽을 바라본다 — diorama 시점.
-            camGo.transform.position = new Vector3(0f, 2.0f, -3.5f);
-            camGo.transform.LookAt(new Vector3(0f, 0.6f, 0f));
+            camGo.transform.position = new Vector3(0f, 3.5f, -3.0f);
+            camGo.transform.LookAt(new Vector3(0f, 0.4f, 0f));
             camGo.AddComponent<HDAdditionalCameraData>();
 
             var spawned = new List<GameObject>();
@@ -457,6 +479,61 @@ namespace SplatForge.EditorPaper03
 
             Physics.SyncTransforms();
 
+            // T2 (§3.4 LayoutValidator iterative push-out) — pair-wise OverlapBox 기반
+            // 충돌 해소. 작은 객체(Renderer.bounds.size 의 합이 작은 쪽)를 큰 객체로부터
+            // half-overlap 거리만큼 XZ 평면 외측 방향으로 밀어내고, 룸 클램프 후 재측정.
+            // 충돌이 사라지거나 최대 10회 반복까지 수행. llm_only 절제 조건 외 모두 적용.
+            int resolvedOverlaps = 0;
+            if (condition != "llm_only")
+            {
+                const int MAX_ITER = 10;
+                for (int it = 0; it < MAX_ITER; it++)
+                {
+                    bool anyResolved = false;
+                    for (int i = 0; i < spawned.Count; i++)
+                    {
+                        for (int j = i + 1; j < spawned.Count; j++)
+                        {
+                            var ga = spawned[i];
+                            var gb = spawned[j];
+                            var ba = ComputeRendererBounds(ga);
+                            var bb = ComputeRendererBounds(gb);
+                            if (!ba.Intersects(bb)) continue;
+                            float dx = bb.center.x - ba.center.x;
+                            float dz = bb.center.z - ba.center.z;
+                            float overlapX = (ba.extents.x + bb.extents.x) - Mathf.Abs(dx);
+                            float overlapZ = (ba.extents.z + bb.extents.z) - Mathf.Abs(dz);
+                            if (overlapX <= 0f && overlapZ <= 0f) continue;
+                            Vector3 dir;
+                            float push;
+                            if (overlapX > 0f && (overlapZ <= 0f || overlapX < overlapZ))
+                            {
+                                dir = new Vector3(dx >= 0f ? 1f : -1f, 0f, 0f);
+                                push = overlapX * 0.5f + 0.001f;
+                            }
+                            else
+                            {
+                                dir = new Vector3(0f, 0f, dz >= 0f ? 1f : -1f);
+                                push = overlapZ * 0.5f + 0.001f;
+                            }
+                            float sizeA = ba.size.x + ba.size.z;
+                            float sizeB = bb.size.x + bb.size.z;
+                            GameObject mover; Vector3 dirMover;
+                            if (sizeA < sizeB) { mover = ga; dirMover = -dir; }
+                            else                { mover = gb; dirMover =  dir; }
+                            var pp = mover.transform.position;
+                            float nx = Mathf.Clamp(pp.x + dirMover.x * push, -CLAMP_X, CLAMP_X);
+                            float nz = Mathf.Clamp(pp.z + dirMover.z * push, -CLAMP_Z, CLAMP_Z);
+                            mover.transform.position = new Vector3(nx, pp.y, nz);
+                            anyResolved = true;
+                            resolvedOverlaps++;
+                        }
+                    }
+                    Physics.SyncTransforms();
+                    if (!anyResolved) break;
+                }
+            }
+
             var perList = new List<PerObject>();
             int groundCount = 0, totalOverlaps = 0;
             for (int i = 0; i < spec.placements.Length; i++)
@@ -520,6 +597,7 @@ namespace SplatForge.EditorPaper03
                 ground_contact_count = groundCount,
                 floor_adhesion_pct = pct,
                 total_collisions = totalOverlaps,
+                resolved_overlaps = resolvedOverlaps,
                 semantic_proximity = semantic,
                 wall_clock_ms = (float)(DateTime.UtcNow - t0).TotalMilliseconds,
                 render_path = pngPath,
@@ -529,7 +607,7 @@ namespace SplatForge.EditorPaper03
             };
             string outJson = Path.Combine(outputDir, $"trial_{trial}.json");
             File.WriteAllText(outJson, JsonUtility.ToJson(metrics, true));
-            Debug.Log($"[Paper03] DONE scenario={spec.scenario} cond={condition} trial={trial} loaded={loadedCount}/{spec.placements.Length} adh%={pct:F1} sem={semantic:F2} png={pngPath}");
+            Debug.Log($"[Paper03] DONE scenario={spec.scenario} cond={condition} trial={trial} loaded={loadedCount}/{spec.placements.Length} adh%={pct:F1} sem={semantic:F2} resolved={resolvedOverlaps} png={pngPath}");
 
             EditorApplication.Exit(0);
         }

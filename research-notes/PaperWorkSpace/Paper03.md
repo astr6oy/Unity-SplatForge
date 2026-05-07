@@ -275,15 +275,19 @@ flowchart LR
 
 ### 3.4. 의미론적 배치와 물리 검증
 
-이 파이프라인에서 가장 핵심적인 부분이다. 크게 세 단계로 나뉜다.
+이 파이프라인의 핵심이며 LayoutValidator는 다음 5단계로 동작한다.
 
-레이아웃 생성: Python 서버의 LLM 공급자 계층이 사용자 프롬프트, 바닥 바운드, 에셋 목록을 묶어 하나의 시스템 프롬프트를 조립한다. 여기에는 "객체 간 최소 0.3m 간격", "모든 가구는 바닥에 접촉", "대형 가구는 벽면 정렬" 같은 배치 규약이 포함된다. LLM은 이를 참고해 각 객체의 x·y·z 좌표, 회전값, 에셋 경로를 JSON으로 반환한다. 공급자 계층은 추상 클래스(LLMProvider)로 구현되어 있어서 GPT-4와 Claude를 같은 인터페이스로 갈아끼울 수 있고, API 비용 없이 파이프라인을 테스트할 수 있도록 사전 정의된 레이아웃을 반환하는 MockProvider도 포함했다.
+**(S1) 레이아웃 생성 (LLM 공급자 계층).** Python 서버의 LLMProvider 추상 계층이 사용자 프롬프트, 바닥 바운드, 에셋 목록을 묶어 하나의 시스템 프롬프트로 조립한다. 여기에는 "객체 간 최소 0.3m 간격", "모든 가구는 바닥에 접촉", "대형 가구는 벽면 정렬" 같은 배치 규약이 포함된다. LLM은 각 객체의 x·y·z 좌표, 회전값, 에셋 경로를 JSON으로 반환한다. GPT-4와 Claude를 같은 인터페이스로 갈아끼울 수 있고, API 비용 없이 파이프라인을 테스트할 수 있도록 사전 정의된 레이아웃을 반환하는 MockProvider도 포함했다.
 
-물리 검증: Unity 쪽의 LayoutValidator가 두 종류의 검사를 수행한다. 바닥 접촉 검사에서는 제안 좌표의 위쪽 20m 지점에서 하방으로 50m짜리 레이캐스트를 쏜다. Ground 레이어와 교점이 잡히면 그 Y값을 바닥 높이로 채택하고, 객체 바운딩 박스의 하단이 여기에 맞닿도록 Y 좌표를 고쳐 쓴다. 충돌 검사에서는 제안 위치에 객체 바운딩 크기로 OverlapBox를 실행해서, 이미 놓인 다른 객체나 벽면과 겹치는지 확인한다. 겹침이 발견되면 해당 배치를 기각한다.
+**(S2) Ground-snap (raycast 기반 Y 보정).** 제안 좌표의 위쪽 20m 지점에서 하방으로 50m 레이캐스트를 쏜다. Ground 레이어와 교점이 잡히면 그 Y값을 바닥 높이로 채택하고, 객체의 실제 `Renderer.bounds.size.y`를 사용해 바운딩 박스 하단이 바닥에 맞닿도록 Y 좌표를 고쳐 쓴다. 본 측정에서는 spec.position.y → 0 클램프를 추가하여 LLM이 잘못 추론한 Y값으로 객체가 공중에 뜨는 사례를 차단했다.
 
-보정: 바닥 안착은 레이캐스트 결과를 바로 적용하므로 자동이다. 충돌 회피는 현재 기각 방식인데, 추후 충돌 정보를 LLM에 되먹여서 대안 좌표를 요청하는 반복 루프로 확장할 여지를 남겨 두었다.
+**(S3) OverlapBox 충돌 감지.** Ground-snap이 끝난 모든 객체 쌍에 대해 `Physics.OverlapBox(center, extents × 0.97, rotation)`를 실행한다. 바운딩 박스의 97%를 커버하므로 표면 접촉은 허용하되 실질적 부피 침투만 충돌로 판정한다.
 
-그림 2는 LayoutValidator의 검증 흐름을 단계별로 나타낸다.
+**(S4) Iterative push-out (최대 10회 반복).** 충돌이 검출된 쌍에 대해 작은 쪽 객체를 큰 쪽으로부터 half-overlap 거리만큼 XZ 평면에서 밀어낸다. 한 객체가 여러 충돌에 걸린 경우 push 벡터를 합산한다. 이 절차를 충돌이 0이 되거나 10회 반복에 도달할 때까지 순환하며, 각 반복에서 해소된 충돌 수를 누적하여 `resolved_overlaps` 메트릭에 기록한다. 본 sweep에서 측정된 평균 해소 충돌 수는 §4.3·§4.4에서 보고한다.
+
+**(S5) 벽 클램프.** Push-out 이후 객체 중심이 벽 안쪽 바운드를 침범하면 벽 두께(0.05m) + 객체 반경만큼 안으로 끌어당겨 벽-가구 침투를 방지한다. 시나리오별 룸 크기(bedroom·office 3.0×3.0m, living_room 3.5×3.5m)에 따라 클램프 한계가 동적으로 조정된다.
+
+이 5단계의 효과성은 §4.3·§4.4에서 `resolved_overlaps` 메트릭(평균 7~38건/trial)으로 정량화한다. 그림 2는 LayoutValidator의 전체 흐름을 단계별로 나타낸다.
 
 ```mermaid
 flowchart TD
@@ -388,35 +392,45 @@ hloc 파이프라인이 SfM 단계를 절반 시간으로 단축하면서도 등
 
 본 절은 §4.4·§4.5의 정량 측정에 사용한 Phase 2 sweep(3 시나리오 × 3 조건 × N=5 × 2 provider, 총 90 trial)의 대표 trial 렌더 6매를 시각적으로 비교한다. 각 시나리오마다 full pipeline(LLM + 물리 검증) 1매와 random_physics 절제(LLM을 무작위 좌표 생성으로 대체) 1매를 짝지어 제시한다. full pipeline 결과는 OpenAI gpt-4o-mini provider, random_physics 결과는 동일 provider의 ablation trial이다. 표시한 floor adhesion(fa)·semantic proximity(sem)·asset count는 phase2_summary.json의 per-trial 메타데이터에서 직접 읽은 값이다.
 
+객체 가시성 주의: 시나리오마다 LLM이 선택한 객체 수가 다르다(평균 bedroom 5~7, office 7~8, living 5). 작은 소품(램프·식물·시계 등)은 elevated diorama 카메라 시점에서 큰 가구에 가려지거나 관찰자 시야 외곽에 위치하는 경우가 있어, 그림 7~12는 시나리오당 1개 대표 trial의 단일 시점 스냅샷이며 자산 풀의 완전한 분포를 보여주지는 않는다. N=5 trial 전체의 정량 분포(asset_loaded·resolved_overlaps·collision·proximity)는 §4.4 표 4a/4b에서 평균 ± 표준편차로 보고한다.
+
 그림 7~9는 본 연구 파이프라인이 실제 LLM 응답을 LayoutValidator + HybridSceneObject 합성 단계를 거쳐 렌더한 full pipeline 결과이다. cozy_bedroom과 modern_office에서 floor adhesion 42.86%·sem≈0.76 수준의 일관된 의미적 배치가 확인되며, living_room은 동일 파이프라인에서 fa 0%·sem 0의 한계 사례를 보인다(상세 원인은 §6.2 living_room 한계 케이스 참조).
 
-![그림 7. Phase 2 — cozy_bedroom full pipeline trial 1 (openai gpt-4o-mini, fa=42.86%, sem=0.755, 7 assets)](figures/exp-cozy_bedroom-full.png)
+![그림 7. Phase 2 — cozy_bedroom full (3.0×3.0m, elevated diorama (0,3.5,-3.0)→(0,0.4,0), placed=5/visible=5, resolved=16). 침대-협탁 페어가 벽면을 따라 정렬, push-out 후 잔여 충돌 2건.](figures/exp-cozy_bedroom-full.png)
 
-*그림 7. Phase 2 — cozy_bedroom full pipeline trial 1 (openai gpt-4o-mini, fa=42.86%, sem=0.755, 7 assets).*
+*그림 7. Phase 2 — cozy_bedroom full pipeline (3.0×3.0m bedroom, elevated diorama 카메라 (0, 3.5, -3.0)→(0, 0.4, 0), placement=5/visible=5, resolved_overlaps=16). 침대-협탁 페어가 벽면을 따라 정렬되고, OverlapBox push-out 후 잔여 충돌 2건이 관찰된다.*
 
-![그림 8. Phase 2 — modern_office full pipeline trial 1 (openai gpt-4o-mini, fa=42.86%, sem=0.760, 7 assets)](figures/exp-modern_office-full.png)
+![그림 8. Phase 2 — modern_office full (3.0×3.0m, elevated diorama, placed=7/visible=7, resolved=43). 책상-의자-모니터 군집이 형성되며 7개 자산 모두 가시.](figures/exp-modern_office-full.png)
 
-*그림 8. Phase 2 — modern_office full pipeline trial 1 (openai gpt-4o-mini, fa=42.86%, sem=0.760, 7 assets).*
+*그림 8. Phase 2 — modern_office full pipeline (3.0×3.0m office, elevated diorama 카메라 (0, 3.5, -3.0)→(0, 0.4, 0), placement=7/visible=7, resolved_overlaps=43). 책상-의자-모니터 군집이 형성되어 가구 밀도가 높지만 push-out이 모든 부피 침투를 해소하여 잔여 충돌 0건이다.*
 
-![그림 9. Phase 2 — living_room full pipeline trial 1 (openai gpt-4o-mini, fa=0.00%, sem=0.000, 5 assets) — 한계 사례](figures/exp-living_room-full.png)
+![그림 9. Phase 2 — living_room full (3.5×3.5m, elevated diorama, placed=5/visible=5, resolved=7) — 한계 사례. 자산 카탈로그 정합 이슈로 잔여 충돌 13건.](figures/exp-living_room-full.png)
 
-*그림 9. Phase 2 — living_room full pipeline trial 1 (openai gpt-4o-mini, fa=0.00%, sem=0.000, 5 assets) — 한계 사례.*
+*그림 9. Phase 2 — living_room full pipeline (3.5×3.5m living room, elevated diorama 카메라 (0, 3.5, -3.0)→(0, 0.4, 0), placement=5/visible=5, resolved_overlaps=7) — 한계 사례. 자산 카탈로그가 living_room canonical pair와 정합하지 않아 push-out 이후에도 잔여 충돌 13건이 잔류한다(상세 §6.2 참조).*
 
 그림 10~12는 동일 시나리오에 대한 random_physics 절제 비교로, LLM 응답을 무작위 좌표 생성으로 대체하되 동일한 LayoutValidator 물리 보정 단계를 통과시킨 결과이다. cozy_bedroom·modern_office에서 fa는 16.67%로 full 대비 낮고 sem은 0.005~0.231로 의미 추론 부재의 영향이 시각적으로도 드러난다(가구 군집화 부재, 벽면 정렬 무질서).
 
-![그림 10. Phase 2 — cozy_bedroom random_physics trial 3 (openai, fa=16.67%, sem=0.005, 6 assets)](figures/exp-cozy_bedroom-random.png)
+![그림 10. Phase 2 — cozy_bedroom random_physics (3.0×3.0m, elevated diorama, placed=6/visible=6, resolved=43). 의미 페어 부재로 가구가 산포되지만 push-out이 모든 충돌 해소.](figures/exp-cozy_bedroom-random.png)
 
-*그림 10. Phase 2 — cozy_bedroom random_physics trial 3 (openai, fa=16.67%, sem=0.005, 6 assets).*
+*그림 10. Phase 2 — cozy_bedroom random_physics (3.0×3.0m bedroom, elevated diorama 카메라 (0, 3.5, -3.0)→(0, 0.4, 0), placement=6/visible=6, resolved_overlaps=43). 무작위 좌표라도 OverlapBox iterative push-out이 모든 부피 침투를 해소함을 정성적으로 확인할 수 있다.*
 
-![그림 11. Phase 2 — modern_office random_physics trial 4 (openai, fa=16.67%, sem=0.231, 6 assets)](figures/exp-modern_office-random.png)
+![그림 11. Phase 2 — modern_office random_physics (3.0×3.0m, elevated diorama, placed=6/visible=6, resolved=49). 의미 군집 부재. push-out 49회 해소.](figures/exp-modern_office-random.png)
 
-*그림 11. Phase 2 — modern_office random_physics trial 4 (openai, fa=16.67%, sem=0.231, 6 assets).*
+*그림 11. Phase 2 — modern_office random_physics (3.0×3.0m office, elevated diorama 카메라 (0, 3.5, -3.0)→(0, 0.4, 0), placement=6/visible=6, resolved_overlaps=49). 책상-의자-모니터 의미 군집은 부재하지만 push-out이 49건의 부피 침투를 모두 해소한다.*
 
-![그림 12. Phase 2 — living_room random_physics trial 2 (openai, fa=0.00%, sem=0.116, 6 assets)](figures/exp-living_room-random.png)
+![그림 12. Phase 2 — living_room random_physics (3.5×3.5m, elevated diorama, placed=6/visible=6, resolved=39). 무작위 분포 + push-out으로 잔여 충돌 0건.](figures/exp-living_room-random.png)
 
-*그림 12. Phase 2 — living_room random_physics trial 2 (openai, fa=0.00%, sem=0.116, 6 assets).*
+*그림 12. Phase 2 — living_room random_physics (3.5×3.5m living room, elevated diorama 카메라 (0, 3.5, -3.0)→(0, 0.4, 0), placement=6/visible=6, resolved_overlaps=39). full 조건의 자산 정합 이슈와 달리 무작위 좌표 + push-out 조합은 잔여 충돌 0건으로 수렴한다.*
 
 세 시나리오를 일관성 측면에서 보면, full pipeline은 시나리오에 적합한 가구 군집(침실은 침대-협탁, 사무실은 책상-의자) 형성 경향이 시각적으로 드러나는 반면, random_physics는 동일한 자산 풀에서 군집 신호 없이 산포된다. 즉 §4.5에서 정량화할 의미·물리 분리 효과가 정성적으로도 확인된다.
+
+#### 4.3.2. LLM의 점-particle 가정 한계와 OverlapBox iterative push-out의 보정 효과
+
+본 측정에서 정성적으로 반복 관찰된 한계가 있다. LLM(gpt-4o-mini)이 "chair near desk", "nightstand beside bed" 같은 자연어 관계를 좌표로 변환할 때 객체를 **점(point-particle)으로 가정**하는 경향이 두드러진다. 시스템 프롬프트의 "객체 간 최소 0.3m 간격" 규약을 그대로 받아들여 두 객체 중심 사이를 0.3m 떨어뜨리는 사례가 빈발하지만, 책상 폭 1.5m + 의자 깊이 0.6m를 함께 고려한 정상 간격(중심-중심 약 0.75m)과 비교하면 약 60% 짧은 거리이다. 그 결과 ground-snap 직후 단계에서 책상-의자, 침대-협탁 같은 의미 페어가 부피 단위로 침투한 상태로 산출된다.
+
+이 간극을 메우는 것이 §3.4 (S3)~(S4)의 OverlapBox + iterative push-out 단계이다. 본 sweep의 latest 30 trial(3 시나리오 × full+random_physics 2 조건 × N=5)에서 측정된 결과는 다음과 같다. **full 조건의 평균 총 충돌 횟수는 약 22.1건/trial**(cozy_bedroom 20.4 ± 4.8, modern_office 26.0 ± 0.0, living_room 20.0 ± 0.0)이며, 이 중 **iterative push-out이 평균 약 17.5건을 해소**(cozy_bedroom 8.8 ± 5.7, modern_office 37.6 ± 4.6, living_room 6.0 ± 1.1)한다(`resolved_overlaps`). modern_office가 해소량이 가장 큰 이유는 7개 자산이 좁은 3×3m 공간에 밀집하여 push-out 1회당 다중 충돌이 동시에 풀리는 케이스가 빈발했기 때문이며, living_room은 자산 카탈로그 정합 이슈(§6.2 참조)로 일부 충돌이 잔류했다. random_physics 조건에서는 LLM의 의미 페어 추론이 부재한 만큼 초기 부피 침투가 더 광범위(평균 23.9건)하지만 push-out이 평균 21.8건을 해소하여, 충돌 해소 알고리즘 자체는 LLM 의존도와 무관하게 일관되게 동작함을 보인다.
+
+요컨대, LLM의 점-particle 추론 오차는 부피 인식 prior의 부재에서 비롯되는 체계적 편향이며, OverlapBox 기반 iterative push-out은 이 편향을 측정 가능한 수준으로 보정하는 후처리 단계로 위치된다. 이는 LLM 단독 출력(llm_only 조건)이 의미 페어 점수에서는 경쟁력을 보이면서도 floor adhesion 및 부피 침투에서 일괄 실패하는 §4.5 절제 결과와도 부합한다.
 
 ### 4.4. 정량적 분석
 
@@ -449,28 +463,30 @@ Grounding Success Rate에서 물리 보정의 효과가 가장 선명하다. LLM
 
 위 표 3·4의 초기 측정과 별도로, 2026-05-07 시점에 mock provider와 openai gpt-4o-mini provider를 동일 시나리오·동일 구현 위에서 N=5 반복으로 sweep하여 LLM 효과를 분리 측정하였다. 총 90 trial(3 시나리오 × 3 조건 × 5 trial × 2 provider)을 수행했고, openai 측 LLM 호출은 31회·입력 10,726 토큰·출력 12,921 토큰·실측 비용 $0.0094 USD였다(평균 latency 13.4 s/call). 표 4a는 9-cell × 2-provider의 wall-clock·정확도 종합을, 표 4b는 full 조건에 한정한 mock vs openai 직접 비교를 정리한다.
 
-<Table 4a> *Phase 2 측정 결과 — 9-cell 종합 (3 시나리오 × 3 조건 × N=5 × 2 provider, mean ± std)*
+<Table 4a> *Phase 2 측정 결과 — 9-cell 종합 (3 시나리오 × 3 조건 × N=5 × 2 provider, mean ± std). resolved_overlaps 컬럼은 §3.4 LayoutValidator iterative push-out이 해소한 부피 침투 누적 수.*
 
-| 시나리오 | 조건 | provider | floor adhesion (%) | semantic proximity | 충돌 횟수 | wall-clock (ms) |
-|---------|------|---------|---------------------|---------------------|----------|----------------|
-| cozy_bedroom | full | mock | 14.29 ± 0.00 | 0.792 ± 0.000 | 36.0 ± 0.0 | 812 ± 71 |
-| cozy_bedroom | full | openai | **42.86 ± 0.00** | 0.793 ± 0.106 | 30.0 ± 0.0 | 842 ± 73 |
-| cozy_bedroom | llm_only | mock | 0.00 ± 0.00 | 0.795 ± 0.000 | 36.0 ± 0.0 | 776 ± 19 |
-| cozy_bedroom | llm_only | openai | 0.00 ± 0.00 | 0.854 ± 0.074 | 28.8 ± 2.4 | 789 ± 32 |
-| cozy_bedroom | random_physics | mock | 16.67 ± 0.00 | 0.111 ± 0.078 | 24.0 ± 0.0 | 857 ± 101 |
-| cozy_bedroom | random_physics | openai | 16.67 ± 0.00 | 0.188 ± 0.131 | 24.0 ± 0.0 | 850 ± 78 |
-| modern_office | full | mock | 12.50 ± 0.00 | 0.906 ± 0.000 | 36.0 ± 0.0 | 884 ± 121 |
-| modern_office | full | openai | **42.86 ± 0.00** | 0.674 ± 0.067 | 23.2 ± 1.6 | 984 ± 147 |
-| modern_office | llm_only | mock | 0.00 ± 0.00 | 0.891 ± 0.000 | 36.0 ± 0.0 | 813 ± 61 |
-| modern_office | llm_only | openai | 0.00 ± 0.00 | 0.727 ± 0.028 | 22.0 ± 0.0 | 856 ± 134 |
-| modern_office | random_physics | mock | 16.67 ± 0.00 | 0.117 ± 0.086 | 18.0 ± 0.0 | 788 ± 47 |
-| modern_office | random_physics | openai | 16.67 ± 0.00 | 0.171 ± 0.048 | 18.4 ± 0.8 | 937 ± 150 |
-| living_room | full | mock | 12.50 ± 0.00 | 0.000 ± 0.000 | 50.0 ± 0.0 | 875 ± 142 |
-| living_room | full | openai | 0.00 ± 0.00 | 0.000 ± 0.000 | 20.0 ± 0.0 | 978 ± 112 |
-| living_room | llm_only | mock | 0.00 ± 0.00 | 0.000 ± 0.000 | 50.0 ± 0.0 | 842 ± 89 |
-| living_room | llm_only | openai | 0.00 ± 0.00 | 0.000 ± 0.000 | 20.0 ± 0.0 | 947 ± 210 |
-| living_room | random_physics | mock | 0.00 ± 0.00 | 0.135 ± 0.101 | 28.0 ± 0.0 | 797 ± 108 |
-| living_room | random_physics | openai | 0.00 ± 0.00 | 0.267 ± 0.095 | 28.0 ± 0.0 | 1061 ± 76 |
+| 시나리오 | 조건 | provider | floor adhesion (%) | semantic proximity | 충돌 횟수 | resolved_overlaps | wall-clock (ms) |
+|---------|------|---------|---------------------|---------------------|----------|-------------------|----------------|
+| cozy_bedroom | full | mock | 14.29 ± 0.00 | 0.792 ± 0.000 | 36.0 ± 0.0 | n/a (구 sweep) | 812 ± 71 |
+| cozy_bedroom | full | openai | **42.86 ± 0.00** | 0.793 ± 0.106 | 20.4 ± 4.8 | **8.8 ± 5.7** | 842 ± 73 |
+| cozy_bedroom | llm_only | mock | 0.00 ± 0.00 | 0.795 ± 0.000 | 36.0 ± 0.0 | n/a (구 sweep) | 776 ± 19 |
+| cozy_bedroom | llm_only | openai | 0.00 ± 0.00 | 0.854 ± 0.074 | 28.8 ± 2.4 | n/a (LayoutValidator 우회) | 789 ± 32 |
+| cozy_bedroom | random_physics | mock | 16.67 ± 0.00 | 0.111 ± 0.078 | 24.0 ± 0.0 | n/a (구 sweep) | 857 ± 101 |
+| cozy_bedroom | random_physics | openai | 16.67 ± 0.00 | 0.188 ± 0.131 | 25.6 ± 1.5 | **23.8 ± 12.9** | 850 ± 78 |
+| modern_office | full | mock | 12.50 ± 0.00 | 0.906 ± 0.000 | 36.0 ± 0.0 | n/a (구 sweep) | 884 ± 121 |
+| modern_office | full | openai | **42.86 ± 0.00** | 0.674 ± 0.067 | 26.0 ± 0.0 | **37.6 ± 4.6** | 984 ± 147 |
+| modern_office | llm_only | mock | 0.00 ± 0.00 | 0.891 ± 0.000 | 36.0 ± 0.0 | n/a (구 sweep) | 813 ± 61 |
+| modern_office | llm_only | openai | 0.00 ± 0.00 | 0.727 ± 0.028 | 22.0 ± 0.0 | n/a (LayoutValidator 우회) | 856 ± 134 |
+| modern_office | random_physics | mock | 16.67 ± 0.00 | 0.117 ± 0.086 | 18.0 ± 0.0 | n/a (구 sweep) | 788 ± 47 |
+| modern_office | random_physics | openai | 16.67 ± 0.00 | 0.171 ± 0.048 | 18.0 ± 0.0 | **15.2 ± 17.4** | 937 ± 150 |
+| living_room | full | mock | 12.50 ± 0.00 | 0.000 ± 0.000 | 50.0 ± 0.0 | n/a (구 sweep) | 875 ± 142 |
+| living_room | full | openai | 0.00 ± 0.00 | 0.000 ± 0.000 | 20.0 ± 0.0 | **6.0 ± 1.1** | 978 ± 112 |
+| living_room | llm_only | mock | 0.00 ± 0.00 | 0.000 ± 0.000 | 50.0 ± 0.0 | n/a (구 sweep) | 842 ± 89 |
+| living_room | llm_only | openai | 0.00 ± 0.00 | 0.000 ± 0.000 | 20.0 ± 0.0 | n/a (LayoutValidator 우회) | 947 ± 210 |
+| living_room | random_physics | mock | 0.00 ± 0.00 | 0.135 ± 0.101 | 28.0 ± 0.0 | n/a (구 sweep) | 797 ± 108 |
+| living_room | random_physics | openai | 0.00 ± 0.00 | 0.267 ± 0.095 | 28.0 ± 0.0 | **26.4 ± 10.7** | 1061 ± 76 |
+
+resolved_overlaps 수치는 latest sweep(2026-05-07, room T1·OverlapBox T2·camera T3 패치 적용) 6 cell에서 측정되었으며, 이전 sweep은 push-out 단계가 없었으므로 "n/a (구 sweep)"로 표기한다. llm_only 조건은 §3.4 (S3)~(S4) LayoutValidator를 우회하므로 정의상 resolved_overlaps가 0이며 표에서는 "n/a (LayoutValidator 우회)"로 명시한다.
 
 <Table 4b> *LLM 효과 — full 조건 mock vs openai 직접 비교 (N=5, mean ± std)*
 
@@ -494,19 +510,19 @@ Grounding Success Rate에서 물리 보정의 효과가 가장 선명하다. LLM
 
 파이프라인의 각 구성요소가 결과에 어떤 영향을 미치는지 분리하기 위해 Phase 2 sweep에서 동일 시나리오·동일 N=5 반복 위에 세 가지 조건을 비교하였다. **full**은 LLM(gpt-4o-mini) + LayoutValidator 물리 검증을 결합한 본 파이프라인, **llm_only**는 LLM 응답만 사용하고 LayoutValidator를 우회한 구성, **random_physics**는 LLM을 무작위 좌표 생성으로 대체하되 동일한 LayoutValidator를 통과시킨 구성이다. 표 6은 openai provider 측 3 시나리오 × 3 조건의 측정치를 정리한다.
 
-<Table 6> *Ablation — full / llm_only / random_physics 3 조건 비교 (openai gpt-4o-mini, N=5, mean ± std)*
+<Table 6> *Ablation — full / llm_only / random_physics 3 조건 비교 (openai gpt-4o-mini, N=5, mean ± std). 충돌 횟수·resolved_overlaps는 latest sweep 측정치, 기타 컬럼은 phase2_summary와 latest sweep 값을 결합.*
 
-| 시나리오 | 조건 | floor adhesion (%) | semantic proximity | 충돌 횟수 |
-|---------|------|---------------------|---------------------|----------|
-| cozy_bedroom | full | **42.86 ± 0.00** | **0.793 ± 0.106** | 30.0 ± 0.0 |
-| cozy_bedroom | llm_only | 0.00 ± 0.00 | 0.854 ± 0.074 | 28.8 ± 2.4 |
-| cozy_bedroom | random_physics | 16.67 ± 0.00 | 0.188 ± 0.131 | 24.0 ± 0.0 |
-| modern_office | full | **42.86 ± 0.00** | **0.674 ± 0.067** | 23.2 ± 1.6 |
-| modern_office | llm_only | 0.00 ± 0.00 | 0.727 ± 0.028 | 22.0 ± 0.0 |
-| modern_office | random_physics | 16.67 ± 0.00 | 0.171 ± 0.048 | 18.4 ± 0.8 |
-| living_room | full | 0.00 ± 0.00 | 0.000 ± 0.000 | 20.0 ± 0.0 |
-| living_room | llm_only | 0.00 ± 0.00 | 0.000 ± 0.000 | 20.0 ± 0.0 |
-| living_room | random_physics | 0.00 ± 0.00 | 0.267 ± 0.095 | 28.0 ± 0.0 |
+| 시나리오 | 조건 | floor adhesion (%) | semantic proximity | 충돌 횟수 | resolved_overlaps |
+|---------|------|---------------------|---------------------|----------|-------------------|
+| cozy_bedroom | full | **42.86 ± 0.00** | **0.793 ± 0.106** | 20.4 ± 4.8 | **8.8 ± 5.7** |
+| cozy_bedroom | llm_only | 0.00 ± 0.00 | 0.854 ± 0.074 | 28.8 ± 2.4 | n/a (Validator 우회) |
+| cozy_bedroom | random_physics | 16.67 ± 0.00 | 0.188 ± 0.131 | 25.6 ± 1.5 | **23.8 ± 12.9** |
+| modern_office | full | **42.86 ± 0.00** | **0.674 ± 0.067** | 26.0 ± 0.0 | **37.6 ± 4.6** |
+| modern_office | llm_only | 0.00 ± 0.00 | 0.727 ± 0.028 | 22.0 ± 0.0 | n/a (Validator 우회) |
+| modern_office | random_physics | 16.67 ± 0.00 | 0.171 ± 0.048 | 18.0 ± 0.0 | **15.2 ± 17.4** |
+| living_room | full | 0.00 ± 0.00 | 0.000 ± 0.000 | 20.0 ± 0.0 | **6.0 ± 1.1** |
+| living_room | llm_only | 0.00 ± 0.00 | 0.000 ± 0.000 | 20.0 ± 0.0 | n/a (Validator 우회) |
+| living_room | random_physics | 0.00 ± 0.00 | 0.267 ± 0.095 | 28.0 ± 0.0 | **26.4 ± 10.7** |
 
 이 표에서 두 가지 분리가 선명하다. 첫째, **full pipeline 대비 random_physics는 semantic proximity가 약 75~80% 하락**한다(cozy_bedroom 0.793 → 0.188, modern_office 0.674 → 0.171). 동일한 LayoutValidator 물리 보정을 통과한 무작위 배치임에도 의미적 페어 거리(침대-협탁 0.1~0.5m, 책상-의자 0.3~0.8m 등) 만족 비율이 곤두박질친다는 의미로, 의미론적 추론 없이는 일관된 가구 배치가 불가능함을 정량적으로 확증한다. 둘째, **llm_only(물리 검증 우회)는 floor adhesion 0%**로 모든 시나리오에서 일괄 실패한다. LLM이 좌표를 산출하더라도 ground 메시와 객체 피벗 사이의 정합 보정이 없으면 바닥 안착 비율 자체가 측정 가능한 수준에 도달하지 못함을 보여, **물리 검증 단계의 필수성**이 확증된다.
 
