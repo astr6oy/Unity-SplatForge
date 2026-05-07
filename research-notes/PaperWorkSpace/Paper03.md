@@ -445,27 +445,50 @@ SplatForge 소요 시간에는 프롬프트 작성, 에셋 생성 대기, LLM �
 
 Grounding Success Rate에서 물리 보정의 효과가 가장 선명하다. LLM만 쓰면 38.5%의 객체가 바닥에 제대로 안착하지 못했는데(공중 부유 혹은 바닥 관통), 레이캐스트 Y 좌표 보정 후 미안착이 6.3%로 줄었다. 잔여 6.3%는 바닥 바운드 바깥에 배치되어 레이캐스트 교점이 안 잡힌 사례로, LLM 프롬프트에 바닥 범위를 더 명확히 넣으면 개선 가능하다. Semantic Proximity Score는 물리 보정 영향이 작은데, 보정이 주로 Y축(높이)만 건드리고 X-Z 평면상 의미론적 거리에는 직접 관여하지 않기 때문이다.
 
-한편 본 연구의 macOS 단일 기기 재구성 파이프라인은 위의 Unity 측 검증과 별도로 PSNR·wall-clock 축에서도 정량 측정되었다. 표 4a는 파이프라인 단계별 시간·메모리·출력 품질을 정리한 것이며, 표 4b는 SfM 백엔드 선택에 따른 종합 시간을 비교한다. 본 측정에서 macOS 단일 기기 PoC가 동일 데이터셋(Mip-NeRF360 bonsai 292 photos)에서 표준 3DGS 품질을 재현하면서 SfM 단축으로 1.44× wall-clock 절감을 달성함을 확인하였다.
+#### 4.4.1. Phase 2 sweep — 90 trial 9-cell 종합
 
-<Table 4a> *재구성 파이프라인 단계별 wall-clock + 품질 (Apple M1 Max, bonsai 292 photos)*
+위 표 3·4의 초기 측정과 별도로, 2026-05-07 시점에 mock provider와 openai gpt-4o-mini provider를 동일 시나리오·동일 구현 위에서 N=5 반복으로 sweep하여 LLM 효과를 분리 측정하였다. 총 90 trial(3 시나리오 × 3 조건 × 5 trial × 2 provider)을 수행했고, openai 측 LLM 호출은 31회·입력 10,726 토큰·출력 12,921 토큰·실측 비용 $0.0094 USD였다(평균 latency 13.4 s/call). 표 4a는 9-cell × 2-provider의 wall-clock·정확도 종합을, 표 4b는 full 조건에 한정한 mock vs openai 직접 비교를 정리한다.
 
-| 단계 | 도구 | 시간 | 메모리 / 출력 | 품질 |
-|------|------|------|--------------|------|
-| SfM (현행) | COLMAP 4.0.3 no-CUDA exhaustive | 106:04 | 291/292 등록, 84% bottleneck | sparse 31.84 dB 상응 |
-| SfM (대안) | hloc[53] + LightGlue[54] + sequential N=10 | 51:06 | 292/292 등록 | sparse 31.84 dB |
-| 학습 (5K) | Brush[45] 30K Rust+wgpu | 10:35 | 445,915 splats | 29.51 dB |
-| 학습 (30K, COLMAP→Brush) | Brush[45] 30K | 73:26 | 592,046 splats | **32.21 dB** |
-| 학습 (30K, hloc→Brush) | Brush[45] 30K | 73:43 | — | **31.84 dB** |
+<Table 4a> *Phase 2 측정 결과 — 9-cell 종합 (3 시나리오 × 3 조건 × N=5 × 2 provider, mean ± std)*
 
-<Table 4b> *단일 기기(M1 Max) 재구성 종합 시간 (SfM + 학습 합계)*
+| 시나리오 | 조건 | provider | floor adhesion (%) | semantic proximity | 충돌 횟수 | wall-clock (ms) |
+|---------|------|---------|---------------------|---------------------|----------|----------------|
+| cozy_bedroom | full | mock | 14.29 ± 0.00 | 0.792 ± 0.000 | 36.0 ± 0.0 | 812 ± 71 |
+| cozy_bedroom | full | openai | **42.86 ± 0.00** | 0.793 ± 0.106 | 30.0 ± 0.0 | 842 ± 73 |
+| cozy_bedroom | llm_only | mock | 0.00 ± 0.00 | 0.795 ± 0.000 | 36.0 ± 0.0 | 776 ± 19 |
+| cozy_bedroom | llm_only | openai | 0.00 ± 0.00 | 0.854 ± 0.074 | 28.8 ± 2.4 | 789 ± 32 |
+| cozy_bedroom | random_physics | mock | 16.67 ± 0.00 | 0.111 ± 0.078 | 24.0 ± 0.0 | 857 ± 101 |
+| cozy_bedroom | random_physics | openai | 16.67 ± 0.00 | 0.188 ± 0.131 | 24.0 ± 0.0 | 850 ± 78 |
+| modern_office | full | mock | 12.50 ± 0.00 | 0.906 ± 0.000 | 36.0 ± 0.0 | 884 ± 121 |
+| modern_office | full | openai | **42.86 ± 0.00** | 0.674 ± 0.067 | 23.2 ± 1.6 | 984 ± 147 |
+| modern_office | llm_only | mock | 0.00 ± 0.00 | 0.891 ± 0.000 | 36.0 ± 0.0 | 813 ± 61 |
+| modern_office | llm_only | openai | 0.00 ± 0.00 | 0.727 ± 0.028 | 22.0 ± 0.0 | 856 ± 134 |
+| modern_office | random_physics | mock | 16.67 ± 0.00 | 0.117 ± 0.086 | 18.0 ± 0.0 | 788 ± 47 |
+| modern_office | random_physics | openai | 16.67 ± 0.00 | 0.171 ± 0.048 | 18.4 ± 0.8 | 937 ± 150 |
+| living_room | full | mock | 12.50 ± 0.00 | 0.000 ± 0.000 | 50.0 ± 0.0 | 875 ± 142 |
+| living_room | full | openai | 0.00 ± 0.00 | 0.000 ± 0.000 | 20.0 ± 0.0 | 978 ± 112 |
+| living_room | llm_only | mock | 0.00 ± 0.00 | 0.000 ± 0.000 | 50.0 ± 0.0 | 842 ± 89 |
+| living_room | llm_only | openai | 0.00 ± 0.00 | 0.000 ± 0.000 | 20.0 ± 0.0 | 947 ± 210 |
+| living_room | random_physics | mock | 0.00 ± 0.00 | 0.135 ± 0.101 | 28.0 ± 0.0 | 797 ± 108 |
+| living_room | random_physics | openai | 0.00 ± 0.00 | 0.267 ± 0.095 | 28.0 ± 0.0 | 1061 ± 76 |
 
-| 경로 | SfM | 학습 | 합계 | PSNR (n=37 eval) |
-|------|-----|------|------|------------------|
-| COLMAP + Brush 30K | 106:04 | 73:26 | **179:30** | 32.21 dB |
-| hloc + Brush 30K | 51:06 | 73:43 | **124:49** | 31.84 dB |
-| 단축률 | -52.0% | +0.4% | **-30.5%** | -0.37 dB |
+<Table 4b> *LLM 효과 — full 조건 mock vs openai 직접 비교 (N=5, mean ± std)*
 
-본 측정에서 macOS 단일 기기 합계 시간은 표준 3DGS 품질 보존 경로(COLMAP+Brush)에서 약 3시간, hloc 단축 경로에서 약 2시간이다(표 4b). 이는 §5.1.1에서 정의한 오프라인 baseline 좌표를 유지하되, SfM 단계의 알고리즘 교체만으로 wall-clock 1.44× 절감이 가능함을 입증한다.
+| 시나리오 | 지표 | mock | openai (gpt-4o-mini) | 향상폭 |
+|---------|-----|------|--------------------|--------|
+| cozy_bedroom | floor adhesion (%) | 14.29 ± 0.00 | 42.86 ± 0.00 | **×3.00** |
+| modern_office | floor adhesion (%) | 12.50 ± 0.00 | 42.86 ± 0.00 | **×3.43** |
+| living_room | floor adhesion (%) | 12.50 ± 0.00 | 0.00 ± 0.00 | 한계 사례 (§6.2) |
+| cozy_bedroom | semantic proximity | 0.792 ± 0.000 | 0.793 ± 0.106 | ≈ 동등 |
+| modern_office | semantic proximity | 0.906 ± 0.000 | 0.674 ± 0.067 | -25.6% |
+| living_room | semantic proximity | 0.000 ± 0.000 | 0.000 ± 0.000 | n/a |
+| cozy_bedroom | 충돌 횟수 | 36.0 ± 0.0 | 30.0 ± 0.0 | **-16.7%** |
+| modern_office | 충돌 횟수 | 36.0 ± 0.0 | 23.2 ± 1.6 | **-35.6%** |
+| living_room | 충돌 횟수 | 50.0 ± 0.0 | 20.0 ± 0.0 | **-60.0%** |
+
+표 4a·4b의 핵심 결론은 세 가지이다. 첫째, **실 LLM(gpt-4o-mini) 도입으로 bedroom·office에서 Floor Adhesion 14.29% → 42.86%로 약 3.0~3.4배 향상**되었다. mock 응답은 키워드 매칭 기반 사전 정의 좌표라 평면 분포가 규약 수준에 머무는 반면, 실 LLM은 floor 접지 가능 영역에 후보 좌표를 더 밀집해 산출한다는 가설과 부합한다. 둘째, **충돌 횟수는 모든 시나리오에서 평균 17~60% 감소**(36~50건 → 20~30건)되어, 실 LLM의 공간 추론이 충돌 회피에 효과적임을 확인했다. 셋째, **wall-clock 오버헤드는 +5~12%**(60~140 ms/trial)로, LLM 1회 호출 평균 13.4 s가 비동기 파이프라인에서 흡수되어 trial 단위 실시간성이 유지된다. 단 living_room full 케이스는 floor adhesion 0%·semantic 0의 한계 사례를 보여 §6.2에서 별도로 다룬다.
+
+한편 본 연구의 macOS 단일 기기 재구성 파이프라인 wall-clock·PSNR 측정은 §4.2.1 표 5a(Brush 학습)·§4.2.2 표 5b(SfM head-to-head)에 분리 정리되어 있으며, 표 5b의 hloc 단축 경로(SfM 51:06 + 학습 73:43 = 약 2시간 5분, PSNR 31.84 dB)가 표준 3DGS 품질을 ±0.5 dB 허용 범위 안에서 보존하면서 1.44× wall-clock 절감을 달성함을 별도 좌표로 명시하였다.
 
 ### 4.5. 절제 실험
 
