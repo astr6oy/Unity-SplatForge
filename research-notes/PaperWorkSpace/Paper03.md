@@ -384,6 +384,40 @@ hloc 파이프라인이 SfM 단계를 절반 시간으로 단축하면서도 등
 
 배치의 의미론적 측면에서는, 인접 관계("침대 옆 협탁"), 기능적 관계("책상 앞 의자"), 공간 관습("벽면 정렬") 세 범주 모두에서 LLM이 대체로 합리적 결과를 냈다. 문제가 된 것은 밀집 영역에서 간격이 비좁아지는 경우와, 문의 개폐 반경 같은 동적 공간 요구를 고려하지 못하는 경우였다. 벽면 가구 정렬 시 벽과의 간격이 OverlapBox 기준으로는 통과하지만 실제 가구 배치 관행과는 어긋나는 사례도 있었다. 예컨대 장롱 뒤쪽에 5cm 간격만 남기는 식인데, 시스템 프롬프트에 "벽에서 최소 10cm 이격" 같은 규약을 추가하면 교정할 수 있는 영역이다.
 
+#### 4.3.1. Phase 2 시나리오별 정성 결과
+
+본 절은 §4.4·§4.5의 정량 측정에 사용한 Phase 2 sweep(3 시나리오 × 3 조건 × N=5 × 2 provider, 총 90 trial)의 대표 trial 렌더 6매를 시각적으로 비교한다. 각 시나리오마다 full pipeline(LLM + 물리 검증) 1매와 random_physics 절제(LLM을 무작위 좌표 생성으로 대체) 1매를 짝지어 제시한다. full pipeline 결과는 OpenAI gpt-4o-mini provider, random_physics 결과는 동일 provider의 ablation trial이다. 표시한 floor adhesion(fa)·semantic proximity(sem)·asset count는 phase2_summary.json의 per-trial 메타데이터에서 직접 읽은 값이다.
+
+그림 7~9는 본 연구 파이프라인이 실제 LLM 응답을 LayoutValidator + HybridSceneObject 합성 단계를 거쳐 렌더한 full pipeline 결과이다. cozy_bedroom과 modern_office에서 floor adhesion 42.86%·sem≈0.76 수준의 일관된 의미적 배치가 확인되며, living_room은 동일 파이프라인에서 fa 0%·sem 0의 한계 사례를 보인다(상세 원인은 §6.2 living_room 한계 케이스 참조).
+
+![그림 7. Phase 2 — cozy_bedroom full pipeline trial 1 (openai gpt-4o-mini, fa=42.86%, sem=0.755, 7 assets)](figures/exp-cozy_bedroom-full.png)
+
+*그림 7. Phase 2 — cozy_bedroom full pipeline trial 1 (openai gpt-4o-mini, fa=42.86%, sem=0.755, 7 assets).*
+
+![그림 8. Phase 2 — modern_office full pipeline trial 1 (openai gpt-4o-mini, fa=42.86%, sem=0.760, 7 assets)](figures/exp-modern_office-full.png)
+
+*그림 8. Phase 2 — modern_office full pipeline trial 1 (openai gpt-4o-mini, fa=42.86%, sem=0.760, 7 assets).*
+
+![그림 9. Phase 2 — living_room full pipeline trial 1 (openai gpt-4o-mini, fa=0.00%, sem=0.000, 5 assets) — 한계 사례](figures/exp-living_room-full.png)
+
+*그림 9. Phase 2 — living_room full pipeline trial 1 (openai gpt-4o-mini, fa=0.00%, sem=0.000, 5 assets) — 한계 사례.*
+
+그림 10~12는 동일 시나리오에 대한 random_physics 절제 비교로, LLM 응답을 무작위 좌표 생성으로 대체하되 동일한 LayoutValidator 물리 보정 단계를 통과시킨 결과이다. cozy_bedroom·modern_office에서 fa는 16.67%로 full 대비 낮고 sem은 0.005~0.231로 의미 추론 부재의 영향이 시각적으로도 드러난다(가구 군집화 부재, 벽면 정렬 무질서).
+
+![그림 10. Phase 2 — cozy_bedroom random_physics trial 3 (openai, fa=16.67%, sem=0.005, 6 assets)](figures/exp-cozy_bedroom-random.png)
+
+*그림 10. Phase 2 — cozy_bedroom random_physics trial 3 (openai, fa=16.67%, sem=0.005, 6 assets).*
+
+![그림 11. Phase 2 — modern_office random_physics trial 4 (openai, fa=16.67%, sem=0.231, 6 assets)](figures/exp-modern_office-random.png)
+
+*그림 11. Phase 2 — modern_office random_physics trial 4 (openai, fa=16.67%, sem=0.231, 6 assets).*
+
+![그림 12. Phase 2 — living_room random_physics trial 2 (openai, fa=0.00%, sem=0.116, 6 assets)](figures/exp-living_room-random.png)
+
+*그림 12. Phase 2 — living_room random_physics trial 2 (openai, fa=0.00%, sem=0.116, 6 assets).*
+
+세 시나리오를 일관성 측면에서 보면, full pipeline은 시나리오에 적합한 가구 군집(침실은 침대-협탁, 사무실은 책상-의자) 형성 경향이 시각적으로 드러나는 반면, random_physics는 동일한 자산 풀에서 군집 신호 없이 산포된다. 즉 §4.5에서 정량화할 의미·물리 분리 효과가 정성적으로도 확인된다.
+
 ### 4.4. 정량적 분석
 
 저작 시간과 배치 정확도 두 축으로 측정하였다. 수동 저작 시간은 Unity에 익숙한 개발자가 에셋 검색·임포트, 배치·Transform 조정, 충돌체 설정까지 전 과정을 수행하는 데 걸린 시간이다.
