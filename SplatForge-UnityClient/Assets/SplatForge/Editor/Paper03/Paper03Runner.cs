@@ -1,14 +1,18 @@
 // Paper03Runner.cs — batchmode entry for Paper03 experiment
 //
-// 그림 7~12 정식 PBR 렌더 파이프라인 (2026-05-07 v4 — 시나리오별 룸·iterative 충돌 해소·시점 보정):
+// 그림 7~12 정식 PBR 렌더 파이프라인 (2026-05-07 v5 — 벽 통과 회귀 차단 삼중 안전망):
 //   (1) Polyhaven 동봉 PBR 텍스처(diff/nor_gl/arm)를 HDRP/Lit Material 에 직접 바인딩
 //   (2) HDRP Volume(Exposure + Tonemapping ACES) + Directional Sun(Lux)
 //   (3) 회전 근본 보정: auto_lay_fix 휴리스틱 제거. spec.position.y → 0 클램프 +
 //       ground-snap 이 실제 Renderer.bounds.size.y 사용.
 //   (4) v4 시나리오별 룸 (T1): bedroom/office 3.0×3.0m, living_room 3.5×3.5m, 벽 H=2.5m.
-//   (5) v4 §3.4 iterative push-out (T2): ground-snap 후 OverlapBox pair-wise 검사,
-//       작은 객체를 큰 객체로부터 half-overlap 만큼 XZ 평면에서 밀어냄. 최대 10회 반복.
-//       resolved_overlaps 카운트를 metric JSON 에 기록.
+//   (5) v5 §3.4 iterative push-out (T2): ground-snap 후 OverlapBox pair-wise 검사,
+//       작은 객체를 큰 객체로부터 half-overlap 만큼 XZ 평면에서 밀어냄. MAX_ITER 20 회.
+//       각 iter 후 가구↔벽 회수 단계 추가 — bounds.min/max 가 룸 한계 (floorHalf-0.05) 를
+//       넘으면 안쪽으로 정확히 밀어낸다. resolved_overlaps 카운트를 metric JSON 에 기록.
+//   (7) v5 §4.3 벽 통과 회귀 차단 (F1+F2+F3): F1 — per-object bounds-aware 클램프
+//       (Renderer.bounds.extents 기반 5cm 마진). F2 — push-out 에 가구↔벽 회수 단계.
+//       F3 — CLAMP 보수화 (3m 룸 1.4→1.2, 3.5m 룸 1.65→1.5).
 //   (6) v4 카메라 (T3): pos (0, 3.5, -3.0), LookAt (0, 0.4, 0), FOV 55 — diorama
 //       elevated angle 로 객체 배치를 위에서 비스듬히 내려다본다.
 
@@ -286,24 +290,26 @@ namespace SplatForge.EditorPaper03
 
             SetupHdrpVolume();
 
-            // T1 (2026-05-07 v4) — 시나리오별 룸 크기. 마스터 지시:
-            //   bedroom : 3.0×3.0m  → CLAMP ±1.4
-            //   office  : 3.0×3.0m  → CLAMP ±1.4
-            //   living  : 3.5×3.5m  → CLAMP ±1.65
+            // T1 (2026-05-07 v5) — 시나리오별 룸 크기 + 보수 CLAMP (벽 통과 회귀 차단):
+            //   bedroom : 3.0×3.0m  → CLAMP ±1.2 (v4 1.4 → 보수 0.2m)
+            //   office  : 3.0×3.0m  → CLAMP ±1.2
+            //   living  : 3.5×3.5m  → CLAMP ±1.5 (v4 1.65 → 보수 0.15m)
             //   기타    : 4.0×4.0m fallback (기존 동작 유지) → CLAMP ±1.7
-            // 벽 높이 2.5m 고정. 벽 두께 0.05m. CLAMP 는 벽 안쪽 0.1m 마진까지 흡수.
+            // 벽 높이 2.5m 고정. 벽 두께 0.05m. CLAMP 는 객체 중심에 대한 한계.
+            // F1 (per-object bounds-aware) + F2 (push-out wall awareness, MAX_ITER 20) +
+            // F3 (보수 CLAMP) 삼중 안전망 — Renderer.bounds.extents 기반 per-object 마진 5cm.
             float ROOM_W, ROOM_D;
             float CLAMP_X, CLAMP_Z;
             string scn = (spec.scenario ?? "").ToLowerInvariant();
             if (scn == "cozy_bedroom" || scn == "modern_office")
             {
                 ROOM_W = 3.0f; ROOM_D = 3.0f;
-                CLAMP_X = 1.4f; CLAMP_Z = 1.4f;
+                CLAMP_X = 1.2f; CLAMP_Z = 1.2f;
             }
             else if (scn == "living_room")
             {
                 ROOM_W = 3.5f; ROOM_D = 3.5f;
-                CLAMP_X = 1.65f; CLAMP_Z = 1.65f;
+                CLAMP_X = 1.5f; CLAMP_Z = 1.5f;
             }
             else
             {
@@ -479,17 +485,47 @@ namespace SplatForge.EditorPaper03
 
             Physics.SyncTransforms();
 
+            // F1 (2026-05-07 v5) — bounds-aware per-object 벽 통과 차단.
+            // 객체 중심을 ±CLAMP 로 자르더라도 Renderer.bounds.extents 가 (CLAMP, floorHalf)
+            // 사이 거리보다 크면 가장자리가 벽을 뚫는다. 객체별 bounds 측정 후 CLAMP 보다
+            // 더 보수적인 마진으로 재클램프 (5cm 안전여유).
+            float floorHalfX = ROOM_W * 0.5f;
+            float floorHalfZ = ROOM_D * 0.5f;
+            for (int i = 0; i < spawned.Count; i++)
+            {
+                var go = spawned[i];
+                var rb = ComputeRendererBounds(go);
+                float marginX = Mathf.Min(CLAMP_X, floorHalfX - rb.extents.x - 0.05f);
+                float marginZ = Mathf.Min(CLAMP_Z, floorHalfZ - rb.extents.z - 0.05f);
+                marginX = Mathf.Max(marginX, 0.0f);
+                marginZ = Mathf.Max(marginZ, 0.0f);
+                var pos = go.transform.position;
+                pos.x = Mathf.Clamp(pos.x, -marginX, marginX);
+                pos.z = Mathf.Clamp(pos.z, -marginZ, marginZ);
+                go.transform.position = pos;
+            }
+            Physics.SyncTransforms();
+
             // T2 (§3.4 LayoutValidator iterative push-out) — pair-wise OverlapBox 기반
             // 충돌 해소. 작은 객체(Renderer.bounds.size 의 합이 작은 쪽)를 큰 객체로부터
             // half-overlap 거리만큼 XZ 평면 외측 방향으로 밀어내고, 룸 클램프 후 재측정.
             // 충돌이 사라지거나 최대 10회 반복까지 수행. llm_only 절제 조건 외 모두 적용.
+            // T2 (v5) — pair-wise OverlapBox push-out + wall awareness. MAX_ITER 20.
+            // (a) 가구↔가구 충돌은 작은 객체를 큰 객체로부터 half-overlap 외측으로 밀어낸다.
+            //     룸 클램프는 per-object bounds 마진 (F1 과 동일 공식) 으로 대체 — CLAMP 직접
+            //     사용 시 큰 객체가 벽을 뚫는 회귀 발생.
+            // (b) 가구↔벽 충돌은 객체 bounds.min/max 가 floor 한계선을 넘는지 검사하고,
+            //     초과분만큼 룸 안쪽으로 밀어낸다. F1 이 이미 한 번 처리했지만 push-out 결과로
+            //     벽 밖으로 밀려난 경우 회수한다.
             int resolvedOverlaps = 0;
             if (condition != "llm_only")
             {
-                const int MAX_ITER = 10;
+                const int MAX_ITER = 20;
                 for (int it = 0; it < MAX_ITER; it++)
                 {
                     bool anyResolved = false;
+
+                    // (a) 가구↔가구 push-out
                     for (int i = 0; i < spawned.Count; i++)
                     {
                         for (int j = i + 1; j < spawned.Count; j++)
@@ -522,14 +558,46 @@ namespace SplatForge.EditorPaper03
                             if (sizeA < sizeB) { mover = ga; dirMover = -dir; }
                             else                { mover = gb; dirMover =  dir; }
                             var pp = mover.transform.position;
-                            float nx = Mathf.Clamp(pp.x + dirMover.x * push, -CLAMP_X, CLAMP_X);
-                            float nz = Mathf.Clamp(pp.z + dirMover.z * push, -CLAMP_Z, CLAMP_Z);
+                            // per-object 마진 사용 (F1 공식과 동일).
+                            var rbm = ComputeRendererBounds(mover);
+                            float mvMarginX = Mathf.Max(0f, Mathf.Min(CLAMP_X, floorHalfX - rbm.extents.x - 0.05f));
+                            float mvMarginZ = Mathf.Max(0f, Mathf.Min(CLAMP_Z, floorHalfZ - rbm.extents.z - 0.05f));
+                            float nx = Mathf.Clamp(pp.x + dirMover.x * push, -mvMarginX, mvMarginX);
+                            float nz = Mathf.Clamp(pp.z + dirMover.z * push, -mvMarginZ, mvMarginZ);
                             mover.transform.position = new Vector3(nx, pp.y, nz);
                             anyResolved = true;
                             resolvedOverlaps++;
                         }
                     }
                     Physics.SyncTransforms();
+
+                    // (b) 가구↔벽 회수: bounds 가 룸 한계 ±(floorHalf - 0.05) 를 넘으면
+                    //     안쪽으로 정확히 밀어낸다.
+                    for (int i = 0; i < spawned.Count; i++)
+                    {
+                        var go = spawned[i];
+                        var rbb = ComputeRendererBounds(go);
+                        float wallLimitX = floorHalfX - 0.05f;
+                        float wallLimitZ = floorHalfZ - 0.05f;
+                        float dxPenL = -wallLimitX - rbb.min.x; // >0 if penetrating left wall
+                        float dxPenR = rbb.max.x - wallLimitX;  // >0 if penetrating right wall
+                        float dzPenB = -wallLimitZ - rbb.min.z; // back wall (+Z) check is max
+                        float dzPenF = rbb.max.z - wallLimitZ;
+                        var pp = go.transform.position;
+                        float adjX = 0f, adjZ = 0f;
+                        if (dxPenL > 0f) adjX += dxPenL;
+                        if (dxPenR > 0f) adjX -= dxPenR;
+                        if (dzPenB > 0f) adjZ += dzPenB;
+                        if (dzPenF > 0f) adjZ -= dzPenF;
+                        if (Mathf.Abs(adjX) > 1e-4f || Mathf.Abs(adjZ) > 1e-4f)
+                        {
+                            go.transform.position = new Vector3(pp.x + adjX, pp.y, pp.z + adjZ);
+                            anyResolved = true;
+                            resolvedOverlaps++;
+                        }
+                    }
+                    Physics.SyncTransforms();
+
                     if (!anyResolved) break;
                 }
             }
