@@ -59,7 +59,7 @@ Paper03.md — 2026-04-21 생성, 2026-04-21 최종 갱신
 
 파이프라인은 두 단계로 움직인다. 먼저 LLM(GPT-4 또는 Claude)이 "침대 옆에 협탁을 놓아라" 같은 한국어·영어 프롬프트를 읽고 x·y·z 좌표를 JSON으로 출력한다. 그 다음 Unity 쪽 LayoutValidator가 레이캐스트로 바닥 높이를 잡고 OverlapBox로 겹침을 걸러낸다. 벽과 바닥은 ProBuilder 메시로, 가구는 3DGS 생성 모델로 만들어 HybridSceneObject라는 래퍼에 담는다.
 
-침실·사무실·거실 세 가지 방에 적용해 본 결과, 손작업 대비 작업 시간이 약 4/5가량 단축되었다. Phase 2 sweep(3 시나리오 × 3 조건 × N=5 × mock·openai 2 provider, 총 90 trial)에서 실 LLM(gpt-4o-mini, $0.0094 USD) 도입 시 침실·사무실의 Floor Adhesion이 14.29% → 42.86%로 약 3.0~3.4배 향상되었고, 충돌 횟수는 30~60% 감소(36~50건 → 20~30건)하면서 wall-clock 오버헤드는 +5~12%(60~140 ms/trial)에 머물렀다. LLM을 무작위 좌표 생성으로 대체하고 동일한 물리 보정만 돌리면 Semantic Proximity가 full 대비 약 75~80% 하락(예: 침실 0.79 → 0.19, 사무실 0.67 → 0.17)하여, 의미론적 추론 없이는 쓸 만한 방이 나오지 않음을 정량적으로 확증하였다.
+침실·사무실·거실 세 가지 방에 적용해 본 결과, 손작업 대비 작업 시간이 약 4/5가량 단축되었다. Phase 2 sweep(3 시나리오 × 3 조건 × N=5 × mock·openai 2 provider, 총 90 trial)에서 실 LLM(gpt-4o-mini, $0.0094 USD) 도입 시 침실·사무실의 Floor Adhesion이 14.29% → 42.86%로 약 3.0~3.4배 향상되었고, 충돌 횟수는 약 28~60% 감소(36~50건 → 20~30건)하면서 wall-clock 오버헤드는 +4~12%(30~103 ms/trial)에 머물렀다. LLM을 무작위 좌표 생성으로 대체하고 동일한 물리 보정만 돌리면 Semantic Proximity가 full 대비 약 75~80% 하락(예: 침실 0.79 → 0.19, 사무실 0.67 → 0.17)하여, 의미론적 추론 없이는 쓸 만한 방이 나오지 않음을 정량적으로 확증하였다.
 
 본 연구는 추가로 macOS Apple Silicon 단일 기기에서 학습-임포트-렌더 전 구간 완결이 가능함을 PoC로 입증하였다. Brush(Rust+wgpu Metal, Apache-2.0) 기반 30K iter 학습이 Mip-NeRF360 bonsai에서 PSNR 32.21 dB(원 3DGS 32.4 dB와 0.19 dB 차)를 기록하였고, hloc + LightGlue로 SfM 단계를 1시간 46분에서 51분 6초로 2.07× 단축(종합 wall-clock 1.44× 절감)하면서 PSNR은 ±0.5 dB 허용 범위 내(31.84 dB)로 유지된다. 이로써 CUDA 없는 baseline 품질 경로가 macOS 단일 기기에서 재현 가능함을 실측 입증한다.
 
@@ -69,7 +69,7 @@ Paper03.md — 2026-04-21 생성, 2026-04-21 최종 갱신
 
 ## Abstract
 
-Manually placing furniture in a game-engine scene is tedious and slow, especially during iterative prototyping. Unity-SplatForge automates this in two passes: an LLM (GPT-4 or Claude) reads a free-text room description and emits per-object coordinates as JSON; then a Unity-side validator fires downward raycasts to snap each piece to the floor and runs OverlapBox checks to reject collisions. Walls and floors are ProBuilder meshes; furniture comes from 3DGS generators wrapped in a HybridSceneObject that pairs a GaussianSplatRenderer with a proxy collider. In three room types the tool trimmed hands-on time by roughly four-fifths. A Phase 2 sweep (3 scenarios × 3 conditions × N=5 × mock and openai providers, 90 trials in total) shows that switching from a mock provider to a real LLM (gpt-4o-mini, $0.0094 USD total spend) raises Floor Adhesion from 14.29% to 42.86% (×3.0~3.4) on bedroom and office, cuts collision counts by 30~60% (36~50 → 20~30 per scene), and incurs only +5~12% wall-clock overhead (60~140 ms/trial). Replacing the LLM with uniform-random placement under the same physics pass collapses Semantic Proximity by ~75~80% (e.g., 0.79 → 0.19 for bedroom, 0.67 → 0.17 for office), confirming quantitatively that the two layers cannot substitute for each other. We additionally demonstrate a CUDA-free single-machine reconstruction path on macOS Apple Silicon: Brush (Rust+wgpu Metal, Apache-2.0) reaches 32.21 dB PSNR on Mip-NeRF360 bonsai at 30K iterations (within 0.19 dB of the original 3DGS benchmark), and replacing COLMAP exhaustive matching with hloc + LightGlue cuts the SfM stage from 106:04 to 51:06 (2.07×), reducing total wall-clock by 1.44× while keeping PSNR within ±0.5 dB. Relative to the Kong et al. (2025) four-fold taxonomy of world models (Video / 3D-scene / Interactive / Physical AI), Unity-SplatForge sits adjacent to the **3D-scene-based** axis but occupies a distinct coordinate by replacing whole-scene generation with object-level semantic placement, providing the missing intermediate layer between large-scale world-model scene synthesis and engine-native physical embodiment.
+Manually placing furniture in a game-engine scene is tedious and slow, especially during iterative prototyping. Unity-SplatForge automates this in two passes: an LLM (GPT-4 or Claude) reads a free-text room description and emits per-object coordinates as JSON; then a Unity-side validator fires downward raycasts to snap each piece to the floor and runs OverlapBox checks to reject collisions. Walls and floors are ProBuilder meshes; furniture comes from 3DGS generators wrapped in a HybridSceneObject that pairs a GaussianSplatRenderer with a proxy collider. In three room types the tool trimmed hands-on time by roughly four-fifths. A Phase 2 sweep (3 scenarios × 3 conditions × N=5 × mock and openai providers, 90 trials in total) shows that switching from a mock provider to a real LLM (gpt-4o-mini, $0.0094 USD total spend) raises Floor Adhesion from 14.29% to 42.86% (×3.0~3.4) on bedroom and office, cuts collision counts by ~28~60% (36~50 → 20~30 per scene), and incurs only +4~12% wall-clock overhead (30~103 ms/trial). Replacing the LLM with uniform-random placement under the same physics pass collapses Semantic Proximity by ~75~80% (e.g., 0.79 → 0.19 for bedroom, 0.67 → 0.17 for office), confirming quantitatively that the two layers cannot substitute for each other. We additionally demonstrate a CUDA-free single-machine reconstruction path on macOS Apple Silicon: Brush (Rust+wgpu Metal, Apache-2.0) reaches 32.21 dB PSNR on Mip-NeRF360 bonsai at 30K iterations (within 0.19 dB of the original 3DGS benchmark), and replacing COLMAP exhaustive matching with hloc + LightGlue cuts the SfM stage from 106:04 to 51:06 (2.07×), reducing total wall-clock by 1.44× while keeping PSNR within ±0.5 dB. Relative to the Kong et al. (2025) four-fold taxonomy of world models (Video / 3D-scene / Interactive / Physical AI), Unity-SplatForge sits adjacent to the **3D-scene-based** axis but occupies a distinct coordinate by replacing whole-scene generation with object-level semantic placement, providing the missing intermediate layer between large-scale world-model scene synthesis and engine-native physical embodiment.
 
 Keywords: 3DGS, LLM, furniture layout automation, Unity, hybrid authoring, Brush, hloc, macOS Apple Silicon, world models
 
@@ -520,13 +520,13 @@ resolved_overlaps 수치는 latest sweep(2026-05-07, room T1·OverlapBox T2·cam
 | cozy_bedroom | semantic proximity | 0.792 ± 0.000 | 0.793 ± 0.106 | ≈ 동등 |
 | modern_office | semantic proximity | 0.906 ± 0.000 | 0.674 ± 0.067 | -25.6% |
 | living_room | semantic proximity | 0.000 ± 0.000 | 0.000 ± 0.000 | n/a |
-| cozy_bedroom | 충돌 횟수 | 36.0 ± 0.0 | 30.0 ± 0.0 | **-16.7%** |
-| modern_office | 충돌 횟수 | 36.0 ± 0.0 | 23.2 ± 1.6 | **-35.6%** |
+| cozy_bedroom | 충돌 횟수 | 36.0 ± 0.0 | 20.4 ± 4.8 | **-43.3%** |
+| modern_office | 충돌 횟수 | 36.0 ± 0.0 | 26.0 ± 0.0 | **-27.8%** |
 | living_room | 충돌 횟수 | 50.0 ± 0.0 | 20.0 ± 0.0 | **-60.0%** |
 
-표 4a·4b의 핵심 결론은 세 가지이다. 첫째, **실 LLM(gpt-4o-mini) 도입으로 bedroom·office에서 Floor Adhesion 14.29% → 42.86%로 약 3.0~3.4배 향상**되었다. mock 응답은 키워드 매칭 기반 사전 정의 좌표라 평면 분포가 규약 수준에 머무는 반면, 실 LLM은 floor 접지 가능 영역에 후보 좌표를 더 밀집해 산출한다는 가설과 부합한다. 둘째, **충돌 횟수는 모든 시나리오에서 평균 17~60% 감소**(36~50건 → 20~30건)되어, 실 LLM의 공간 추론이 충돌 회피에 효과적임을 확인했다. 셋째, **wall-clock 오버헤드는 +5~12%**(60~140 ms/trial)로, LLM 1회 호출 평균 13.4 s가 비동기 파이프라인에서 흡수되어 trial 단위 실시간성이 유지된다. 단 living_room full 케이스는 floor adhesion 0%·semantic 0의 한계 사례를 보여 §6.2에서 별도로 다룬다.
+표 4a·4b의 핵심 결론은 세 가지이다. 첫째, **실 LLM(gpt-4o-mini) 도입으로 bedroom·office에서 Floor Adhesion 14.29% → 42.86%로 약 3.0~3.4배 향상**되었다. mock 응답은 키워드 매칭 기반 사전 정의 좌표라 평면 분포가 규약 수준에 머무는 반면, 실 LLM은 floor 접지 가능 영역에 후보 좌표를 더 밀집해 산출한다는 가설과 부합한다. 둘째, **충돌 횟수는 모든 시나리오에서 평균 약 28~60% 감소**(36~50건 → 20~30건)되어, 실 LLM의 공간 추론이 충돌 회피에 효과적임을 확인했다. 셋째, **wall-clock 오버헤드는 +4~12%**(30~103 ms/trial)로, LLM 1회 호출 평균 13.4 s가 비동기 파이프라인에서 흡수되어 trial 단위 실시간성이 유지된다. 단 living_room full 케이스는 floor adhesion 0%·semantic 0의 한계 사례를 보여 §6.2에서 별도로 다룬다.
 
-한편 본 연구의 macOS 단일 기기 재구성 파이프라인 wall-clock·PSNR 측정은 §4.2.1 표 5a(Brush 학습)·§4.2.2 표 5b(SfM head-to-head)에 분리 정리되어 있으며, 표 5b의 hloc 단축 경로(SfM 51:06 + 학습 73:43 = 약 2시간 5분, PSNR 31.84 dB)가 표준 3DGS 품질을 ±0.5 dB 허용 범위 안에서 보존하면서 1.44× wall-clock 절감을 달성함을 별도 좌표로 명시하였다.
+한편 본 연구의 macOS 단일 기기 재구성 파이프라인 wall-clock·PSNR 측정은 §4.2.1 표 5a(Brush 학습)·§4.2.2 표 5b(SfM head-to-head)에 분리 정리되어 있으며, 표 5b의 hloc 단축 경로(SfM 51:06 + 학습 73:26 = 약 2시간 5분, PSNR 31.84 dB)가 표준 3DGS 품질을 ±0.5 dB 허용 범위 안에서 보존하면서 1.44× wall-clock 절감을 달성함을 별도 좌표로 명시하였다.
 
 ### 4.5. 절제 실험
 
@@ -564,7 +564,7 @@ resolved_overlaps 수치는 latest sweep(2026-05-07, room T1·OverlapBox T2·cam
 
 #### 5.1.2. Feed-forward 계열의 시간 단축
 
-2024년 이후의 **feed-forward 계열**은 해당 시간 축을 수초~수분 단위로 단축한다. DUSt3R(Wang et al., 2024)[41]는 feature matching 단계를 생략하고 이미지 쌍에서 dense point cloud를 직접 회귀하며, MASt3R(Leroy et al., 2024)[42]는 correspondence 품질을 개선한 후속 모델이다. InstantSplat(Fan et al., 2024)[43]은 DUSt3R 초기화를 바탕으로 저 iter 학습을 결합하여 수 분 내 3DGS 산출을 보고한다. hloc(Sarlin et al., 2019)[44]은 SuperPoint·SuperGlue 계열의 learned feature와 vocabulary tree retrieval을 결합하여 exhaustive matching의 $O(N^2)$ 비용을 $O(N \log N)$ 수준으로 완화한다.
+2024년 이후의 **feed-forward 계열**은 해당 시간 축을 수초~수분 단위로 단축한다. DUSt3R(Wang et al., 2024)[41]는 feature matching 단계를 생략하고 이미지 쌍에서 dense point cloud를 직접 회귀하며, MASt3R(Leroy et al., 2024)[42]는 correspondence 품질을 개선한 후속 모델이다. InstantSplat(Fan et al., 2024)[43]은 DUSt3R 초기화를 바탕으로 저 iter 학습을 결합하여 수 분 내 3DGS 산출을 보고한다. hloc(Sarlin et al., 2019)[53]은 SuperPoint[55]·SuperGlue 계열의 learned feature와 vocabulary tree retrieval을 결합하여 exhaustive matching의 $O(N^2)$ 비용을 $O(N \log N)$ 수준으로 완화한다.
 
 상용 제품군에서는 KIRI Engine이 50~150장 입력 기준 10~15분 내외의 end-to-end 처리를 공개 제품 지표로 제시하며, 본 연구 baseline 대비 약 20~50배의 단축이 관찰된다. 다만 KIRI Engine의 내부 알고리즘·하드웨어는 공개되지 않아, 해당 수치의 해석에는 가설적 요소가 포함된다.
 
@@ -586,9 +586,9 @@ resolved_overlaps 수치는 latest sweep(2026-05-07, room T1·OverlapBox T2·cam
 
 §2.5에서 정리한 월드 모델 계열(Lyra/HY-World/Marble/Genie 3/Cosmos)은 Kong et al.[20]의 4축 중 **3D-scene-based**(Lyra·HY-World·Marble)와 **Interactive/Playable**(Genie 3), **Foundation-for-Physical-AI**(Cosmos) 세 축에서 본 연구와 인접한다. 본 절은 그 인접 관계를 결과 맥락에서 재해석하여 본 연구의 좌표를 명확히 한다.
 
-본 연구는 이 흐름 안에서 **"의미론적 배치 기반 조립"**이라는 별개의 좌표를 차지한다. 월드 모델 대부분이 **씬 전체를 통째로 생성**하는 E2E 접근을 채택하는 반면, 본 연구는 기존·생성형 3DGS 에셋을 LLM의 배치 규칙으로 **의미론적으로 조합**하고 Unity 물리엔진으로 검증한다. 표 6은 주요 축에서의 대비를 정리한다.
+본 연구는 이 흐름 안에서 **"의미론적 배치 기반 조립"**이라는 별개의 좌표를 차지한다. 월드 모델 대부분이 **씬 전체를 통째로 생성**하는 E2E 접근을 채택하는 반면, 본 연구는 기존·생성형 3DGS 에셋을 LLM의 배치 규칙으로 **의미론적으로 조합**하고 Unity 물리엔진으로 검증한다. 표 8은 주요 축에서의 대비를 정리한다.
 
-<Table 6> *World-Model vs Unity-SplatForge 대비*
+<Table 8> *World-Model vs Unity-SplatForge 대비*
 
 | 대비 축 | 월드 모델 (Lyra/Marble/Genie 3) | Unity-SplatForge (본 연구) |
 |--------|-------------------------------|--------------------------|
@@ -718,7 +718,6 @@ LLM의 공간 추론은 직사각형 방에서는 무난했으나, L자형 방�
 [41] Wang, S. et al., "DUSt3R: Geometric 3D vision made easy," in Proc. CVPR, 2024. (arXiv:2312.14132)
 [42] Leroy, V. et al., "Grounding image matching in 3D with MASt3R," in Proc. ECCV, 2024. (arXiv:2406.09756)
 [43] Fan, Z. et al., "InstantSplat: Sparse-view SfM-free Gaussian splatting in seconds," arXiv:2403.20309, 2024.
-[44] Sarlin, P.-E. et al., "From coarse to fine: Robust hierarchical localization at large scale," in Proc. CVPR, 2019. (hloc; arXiv:1812.03506)
 [45] Brussee, A., "Brush: Cross-platform 3D Gaussian splatting in Rust/wgpu," GitHub repository, 2026. [Online]. Available: https://github.com/ArthurBrussee/brush (accessed Apr. 24, 2026).
 [46] Ghif, M., "splat-apple: MLX/MPS Gaussian splatting for Apple Silicon," GitHub repository, 2026. [Online]. Available: https://github.com/ghif/splat-apple (accessed Apr. 24, 2026).
 [47] Tofy, P., "OpenSplat: libtorch-based 3DGS with MPS/CUDA/ROCm backends," GitHub repository, 2025. [Online]. Available: https://github.com/pierotofy/OpenSplat (accessed Apr. 24, 2026).
