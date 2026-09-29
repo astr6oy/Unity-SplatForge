@@ -1,0 +1,61 @@
+{
+  "layoutId": "living_room",
+  "description": "A comfortable living room with sofa, coffee table, TV stand, plant (Phase 2 mesh-backed)",
+  "placements": [
+    {
+      "objectId": "sofa_001",
+      "assetPath": "MockAssets/sofa_01",
+      "category": "furniture",
+      "objectName": "Sofa",
+      "position": { "x": 0, "y": 0, "z": -2 },
+      "rotation": { "x": 0, "y": 0, "z": 0 },
+      "scale": { "x": 1, "y": 1, "z": 1 }
+    },
+    {
+      "objectId": "coffee_table_001",
+      "assetPath": "MockAssets/table_01",
+      "category": "furniture",
+      "objectName": "Coffee Table",
+      "position": { "x": 0, "y": 0, "z": 0 },
+      "rotation": { "x": 0, "y": 0, "z": 0 },
+      "scale": { "x": 1, "y": 1, "z": 1 }
+    },
+    {
+      "objectId": "tv_stand_001",
+      "assetPath": "MockAssets/cabinet_01",
+      "category": "furniture",
+      "objectName": "TV Stand",
+      "position": { "x": 0, "y": 0, "z": 3.2 },
+      "rotation": { "x": 0, "y": 180, "z": 0 },
+      "scale": { "x": 1.4, "y": 1, "z": 1 }
+    },
+    {
+      "objectId": "armchair_001",
+      "assetPath": "MockAssets/chair_01",
+      "category": "furniture",
+      "objectName": "Armchair",
+      "position": { "x": -2.8, "y": 0, "z": 0.2 },
+      "rotation": { "x": 0, "y": 45, "z": 0 },
+      "scale": { "x": 1, "y": 1, "z": 1 }
+    },
+    {
+      "objectId": "lamp_002",
+      "assetPath": "MockAssets/lamp_01",
+      "category": "decoration",
+      "objectName": "Floor Lamp",
+      "position": { "x": -3.2, "y": 0, "z": -2.2 },
+      "rotation": { "x": 0, "y": 0, "z": 0 },
+      "scale": { "x": 1, "y": 1, "z": 1 }
+    },
+    {
+      "objectId": "plant_003",
+      "assetPath": "MockAssets/plant_01",
+      "category": "decoration",
+      "objectName": "Floor Plant",
+      "position": { "x": 3.2, "y": 0, "z": -2.2 },
+      "rotation": { "x": 0, "y": 0, "z": 0 },
+      "scale": { "x": 1, "y": 1, "z": 1 }
+    }
+  ],
+  "reasoning": "Sofa anchors the seating zone, coffee table centered, TV stand against the back wall. Armchair angled for conversation. Floor lamp + plant fill the corners. Mesh-backed Polyhaven assets via MockAssets/ Resources path."
+}

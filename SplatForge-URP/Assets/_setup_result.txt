@@ -1,0 +1,1 @@
+OK pipeline=Assets/Settings/SplatTest_URPPipeline.asset

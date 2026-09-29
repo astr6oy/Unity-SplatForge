@@ -69,7 +69,10 @@ namespace SplatForge.EditorPaper03
             public int placement_count;
             public int asset_loaded_count;
             public int ground_contact_count;
-            public float floor_adhesion_pct;
+            public float floor_adhesion_pct;       // 하위호환 — 5cm 임계와 동일 값.
+            public float floor_adhesion_pct_5cm;   // 임계 민감도 (신규 2026-07-06).
+            public float floor_adhesion_pct_10cm;
+            public float floor_adhesion_pct_20cm;
             public int total_collisions;
             public int resolved_overlaps;
             public float semantic_proximity;
@@ -614,17 +617,20 @@ namespace SplatForge.EditorPaper03
                 var p = spec.placements[i];
                 var col = go.GetComponent<Collider>();
                 var bounds = col.bounds;
-                var rayOrigin = new Vector3(go.transform.position.x, bounds.min.y + 0.01f, go.transform.position.z);
-                float adhesion = 999f;
+
+                // 바닥 부착도 측정 (2026-07-06 하니스 수정).
+                //   구버전: 단일점 하향 레이 origin = col.bounds.min.y + 0.01 (루트에 붙인
+                //   size=Vector3.one 합성 BoxCollider 기준). 이 박스는 실제 메시가 아니라
+                //   pivot 을 중심으로 한 임의 크기라, renderer-bounds ground-snap 이 메시
+                //   바닥(=pivot)을 y≈0 에 놓으면 박스 min.y 가 floor 평면 아래로 내려가
+                //   레이가 floor 슬래브 내부/아래에서 시작 → floor 미검출 → 전 객체 999.
+                //   신버전: 월드공간 Renderer bounds 바닥면 5점 하향 레이 + 자기 콜라이더
+                //   무시 + 벽 통과. pivot/축(override_axis)과 무관. 상세: MeasureFloorAdhesion.
                 bool grounded = false;
-                if (Physics.Raycast(rayOrigin, Vector3.down, out var hit, 5f))
-                {
-                    if (hit.collider.gameObject == floor)
-                    {
-                        adhesion = Mathf.Abs(rayOrigin.y - hit.point.y);
-                        grounded = true;
-                    }
-                }
+                string rayDiag = "";
+                float adhesion = MeasureFloorAdhesion(
+                    go, floor, new[] { backWall, leftWall, rightWall }, out grounded, out rayDiag);
+                if (!string.IsNullOrEmpty(rayDiag)) diagMessages[i] += rayDiag;
                 if (grounded) groundCount++;
 
                 int overlap = 0;
@@ -658,8 +664,10 @@ namespace SplatForge.EditorPaper03
             string pngPath = Path.Combine(outputDir, $"trial_{trial}.png");
             CaptureCamera(cam, pngPath, 1280, 720);
 
-            float pct = spec.placements.Length == 0 ? 0f
-                : 100f * CountAdhered(perList) / spec.placements.Length;
+            int n = spec.placements.Length;
+            float pct5  = n == 0 ? 0f : 100f * CountAdhered(perList, 0.05f) / n;
+            float pct10 = n == 0 ? 0f : 100f * CountAdhered(perList, 0.10f) / n;
+            float pct20 = n == 0 ? 0f : 100f * CountAdhered(perList, 0.20f) / n;
             var metrics = new Metrics {
                 scenario = spec.scenario,
                 condition = condition,
@@ -667,7 +675,10 @@ namespace SplatForge.EditorPaper03
                 placement_count = spec.placements.Length,
                 asset_loaded_count = loadedCount,
                 ground_contact_count = groundCount,
-                floor_adhesion_pct = pct,
+                floor_adhesion_pct = pct5,       // 하위호환 — 5cm 임계 유지.
+                floor_adhesion_pct_5cm = pct5,
+                floor_adhesion_pct_10cm = pct10,
+                floor_adhesion_pct_20cm = pct20,
                 total_collisions = totalOverlaps,
                 resolved_overlaps = resolvedOverlaps,
                 semantic_proximity = semantic,
@@ -679,7 +690,7 @@ namespace SplatForge.EditorPaper03
             };
             string outJson = Path.Combine(outputDir, $"trial_{trial}.json");
             File.WriteAllText(outJson, JsonUtility.ToJson(metrics, true));
-            Debug.Log($"[Paper03] DONE scenario={spec.scenario} cond={condition} trial={trial} loaded={loadedCount}/{spec.placements.Length} adh%={pct:F1} sem={semantic:F2} resolved={resolvedOverlaps} png={pngPath}");
+            Debug.Log($"[Paper03] DONE scenario={spec.scenario} cond={condition} trial={trial} loaded={loadedCount}/{spec.placements.Length} adh%(5/10/20cm)={pct5:F1}/{pct10:F1}/{pct20:F1} sem={semantic:F2} resolved={resolvedOverlaps} png={pngPath}");
 
             EditorApplication.Exit(0);
         }
@@ -858,12 +869,95 @@ namespace SplatForge.EditorPaper03
             go.transform.localScale = go.transform.localScale * s;
         }
 
-        static int CountAdhered(List<PerObject> rows)
+        static int CountAdhered(List<PerObject> rows, float threshold)
         {
             int n = 0;
             foreach (var r in rows)
-                if (r.adhesion_dist < 0.05f) n++;
+                if (r.adhesion_dist < threshold) n++;
             return n;
+        }
+
+        // ====================================================================
+        // MeasureFloorAdhesion (2026-07-06 하니스 수정) — 바닥 부착도 강건 측정.
+        //   기준: 항상 월드공간 Renderer bounds 바닥면 (에셋 pivot/축/override_axis 무관).
+        //   방법: 바닥면 5점(중심 + 4모서리, 모서리는 10% 안쪽 인셋)에서 객체 상단 위
+        //     0.5m 지점부터 하향 RaycastAll. 자기 자신(루트/자식 콜라이더)은 무시하고,
+        //     벽은 통과시켜 그 아래 floor 를 계속 탐색한다. floor 를 맞춘 샘플들 중
+        //     최소 gap(= rb.min.y − floor 표면 y) 을 채택. 음수(살짝 파묻힘)는 0 으로.
+        //   반환: 바닥 위 최소 거리(m). 어떤 샘플도 floor 를 못 맞추면 999.
+        //     grounded: 최소 1개 샘플이 floor 도달. rayDiag: floor 이전에 다른 가구에
+        //     먼저 맞은 경우 "ray_hit_other:<name>;", floor 를 전혀 못 맞추면
+        //     "ray_no_floor;" (진단 가시성).
+        //   왜 부풀리기가 아닌가: 실제 렌더 메시의 최하점이 실제 floor 평면 위로 뜬
+        //     수직 거리를, floor 가 그 발자국 아래 존재함을 레이로 확인한 뒤 측정한다.
+        //     구버전이 쓰던 합성 unit-BoxCollider(pivot 중심, 메시와 무관) 대신 실제
+        //     메시 bounds 를 쓰므로 pivot/축 이상이 있어도 물리적 안착을 공정 판정한다.
+        // ====================================================================
+        static float MeasureFloorAdhesion(
+            GameObject go, GameObject floor, GameObject[] walls,
+            out bool grounded, out string rayDiag)
+        {
+            grounded = false;
+            rayDiag = "";
+            var rb = ComputeRendererBounds(go);
+
+            // 바닥면 5점 XZ. 모서리는 extents 의 10% 안쪽으로 인셋 — 벽·이웃 가장자리
+            // 오판 방지 (객체는 벽에서 5cm 이상 떨어지도록 클램프됨).
+            float insetX = rb.extents.x * 0.1f;
+            float insetZ = rb.extents.z * 0.1f;
+            float loX = rb.min.x + insetX, hiX = rb.max.x - insetX;
+            float loZ = rb.min.z + insetZ, hiZ = rb.max.z - insetZ;
+            var samples = new Vector2[] {
+                new Vector2(rb.center.x, rb.center.z),
+                new Vector2(loX, loZ), new Vector2(loX, hiZ),
+                new Vector2(hiX, loZ), new Vector2(hiX, hiZ),
+            };
+
+            // 레이 시작: 객체 최상단 위 0.5m. 하향 길이: floor(및 그 아래)까지 충분히.
+            float startY = rb.max.y + 0.5f;
+            float rayLen = (startY - rb.min.y) + 6f;
+
+            float bestGap = 999f;
+            string otherName = null;
+            foreach (var s in samples)
+            {
+                var origin = new Vector3(s.x, startY, s.y);
+                var allHits = Physics.RaycastAll(origin, Vector3.down, rayLen);
+                // 가까운 순으로 검사.
+                System.Array.Sort(allHits, (h1, h2) => h1.distance.CompareTo(h2.distance));
+                foreach (var h in allHits)
+                {
+                    // 자기 자신(루트 또는 자식 콜라이더) 무시.
+                    if (h.collider.transform.IsChildOf(go.transform)) continue;
+                    var hgo = h.collider.gameObject;
+                    if (hgo == floor)
+                    {
+                        float gap = rb.min.y - h.point.y;
+                        if (gap < bestGap) bestGap = gap;
+                        grounded = true;
+                        break; // 이 샘플에서 floor 도달 — 다음 샘플로.
+                    }
+                    // 벽·타 가구 모두 통과시켜 아래 floor 를 계속 탐색.
+                    //   (2026-07-06 검증 반영) 책상 밑 의자처럼 정당하게 겹치는 배치에서
+                    //   레이가 가구에 막혀 999 가 되는 과소평가를 제거. gap 은 어차피
+                    //   '객체 바닥면 ↔ floor 표면' 수직거리라 통과시켜도 부풀림이 없다
+                    //   (책상 위 램프는 gap≈0.75m 로 정상 탈락). 가구 히트는 진단만 기록.
+                    bool isWall = false;
+                    if (walls != null)
+                        for (int w = 0; w < walls.Length; w++)
+                            if (hgo == walls[w]) { isWall = true; break; }
+                    if (!isWall && otherName == null) otherName = hgo.name;
+                    continue;
+                }
+            }
+
+            if (!grounded)
+            {
+                rayDiag = otherName != null ? ("ray_hit_other:" + otherName + ";") : "ray_no_floor;";
+                return 999f;
+            }
+            if (otherName != null) rayDiag = "ray_hit_other:" + otherName + ";";
+            return Mathf.Max(0f, bestGap);
         }
 
         static float ComputeSemanticProximity(string scenario, List<GameObject> objs)

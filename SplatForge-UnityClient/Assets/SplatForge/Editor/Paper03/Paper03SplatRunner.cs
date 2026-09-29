@@ -90,15 +90,19 @@ namespace SplatForge.EditorPaper03
             hdFill.lightUnit = LightUnit.Lux;
             hdFill.EnableShadows(false);
 
-            // 카메라 — 영웅샷.
-            var camGo = new GameObject("Cam");
+            // 카메라 — 영웅샷. unity-lab 작동 씬과 동일하게 MainCamera 태그 부여.
+            var camGo = new GameObject("Main Camera");
+            camGo.tag = "MainCamera";
             var cam = camGo.AddComponent<Camera>();
             cam.clearFlags = CameraClearFlags.Skybox;
             cam.fieldOfView = 35f;
             cam.nearClipPlane = 0.05f;
+            cam.allowHDR = true;
             camGo.transform.position = new Vector3(1.5f, 1.5f, -2.5f);
             camGo.transform.LookAt(new Vector3(0f, 0.5f, 0f));
-            camGo.AddComponent<HDAdditionalCameraData>();
+            var hdCam = camGo.AddComponent<HDAdditionalCameraData>();
+            hdCam.clearColorMode = HDAdditionalCameraData.ClearColorMode.Sky;
+            hdCam.customRenderingSettings = false;
 
             // 3DGS 자산 로드.
             var splatAsset = AssetDatabase.LoadAssetAtPath<GaussianSplatAsset>(assetPath);
@@ -162,9 +166,27 @@ namespace SplatForge.EditorPaper03
             // EnsureSorterAndRegister 강제 호출 — 첫 cam.Render() 전에 등록 보장.
             renderer.EnsureSorterAndRegister();
 
+            // 워밍업 렌더 — HDRP custom pass + GPU 버퍼 업로드가 첫 프레임에 누락되는
+            // batchmode 한계를 우회. 별도 워밍업 RT 에서 두 번 그린 뒤 본 캡처를 수행.
+            WarmupRender(cam);
+
             CaptureCamera(cam, outputPath, 1280, 720);
             Debug.Log($"[Paper03/Splat] DONE asset={assetPath} png={outputPath}");
             EditorApplication.Exit(0);
+        }
+
+        static void WarmupRender(Camera cam)
+        {
+            var warm = new RenderTexture(256, 144, 24, RenderTextureFormat.DefaultHDR);
+            var prev = cam.targetTexture;
+            cam.targetTexture = warm;
+            for (int i = 0; i < 3; i++)
+            {
+                cam.Render();
+            }
+            cam.targetTexture = prev;
+            warm.Release();
+            UnityEngine.Object.DestroyImmediate(warm);
         }
 
         // 로컬 헬퍼 (Paper03Runner private 접근 회피).
@@ -211,6 +233,9 @@ namespace SplatForge.EditorPaper03
             var rt = new RenderTexture(w, h, 24, RenderTextureFormat.DefaultHDR);
             cam.targetTexture = rt;
             var tex = new Texture2D(w, h, TextureFormat.RGB24, false);
+            // 더블 렌더 — 첫 프레임에서 GPU sorter / custom pass 가 늦어지면
+            // 두 번째 프레임에서야 splat 이 화면에 잡힌다.
+            cam.Render();
             cam.Render();
             RenderTexture.active = rt;
             tex.ReadPixels(new Rect(0, 0, w, h), 0, 0);

@@ -1,0 +1,52 @@
+{
+  "layoutId": "modern_office",
+  "description": "A modern office with desk, chair, bookshelf, and plants (Phase 2 mesh-backed)",
+  "placements": [
+    {
+      "objectId": "desk_002",
+      "assetPath": "MockAssets/desk_01",
+      "category": "furniture",
+      "objectName": "Executive Desk",
+      "position": { "x": 0, "y": 0, "z": 2 },
+      "rotation": { "x": 0, "y": 180, "z": 0 },
+      "scale": { "x": 1.2, "y": 1, "z": 1 }
+    },
+    {
+      "objectId": "chair_002",
+      "assetPath": "MockAssets/chair_01",
+      "category": "furniture",
+      "objectName": "Office Chair",
+      "position": { "x": 0, "y": 0, "z": 0.6 },
+      "rotation": { "x": 0, "y": 0, "z": 0 },
+      "scale": { "x": 1, "y": 1, "z": 1 }
+    },
+    {
+      "objectId": "bookshelf_001",
+      "assetPath": "MockAssets/bookshelf_01",
+      "category": "furniture",
+      "objectName": "Bookshelf",
+      "position": { "x": -3.5, "y": 0, "z": 0 },
+      "rotation": { "x": 0, "y": 90, "z": 0 },
+      "scale": { "x": 1, "y": 1, "z": 1 }
+    },
+    {
+      "objectId": "plant_001",
+      "assetPath": "MockAssets/plant_01",
+      "category": "decoration",
+      "objectName": "Potted Plant",
+      "position": { "x": 3.5, "y": 0, "z": 3 },
+      "rotation": { "x": 0, "y": 0, "z": 0 },
+      "scale": { "x": 1, "y": 1, "z": 1 }
+    },
+    {
+      "objectId": "plant_002",
+      "assetPath": "MockAssets/plant_01",
+      "category": "decoration",
+      "objectName": "Corner Plant",
+      "position": { "x": -3.5, "y": 0, "z": 3 },
+      "rotation": { "x": 0, "y": 45, "z": 0 },
+      "scale": { "x": 0.8, "y": 0.8, "z": 0.8 }
+    }
+  ],
+  "reasoning": "Executive desk faces entry, office chair tucked behind it. Bookshelf along the side wall. Two plants in corners for ambience. Mesh-backed Polyhaven assets via MockAssets/ Resources path."
+}

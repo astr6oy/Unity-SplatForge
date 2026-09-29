@@ -1,0 +1,52 @@
+{
+  "layoutId": "cozy_bedroom",
+  "description": "A cozy bedroom with bed, nightstand, desk, chair, lamp (Phase 2 mesh-backed)",
+  "placements": [
+    {
+      "objectId": "bed_001",
+      "assetPath": "MockAssets/bed_01",
+      "category": "furniture",
+      "objectName": "Double Bed",
+      "position": { "x": 0, "y": 0, "z": 2.5 },
+      "rotation": { "x": 0, "y": 0, "z": 0 },
+      "scale": { "x": 1, "y": 1, "z": 1 }
+    },
+    {
+      "objectId": "nightstand_001",
+      "assetPath": "MockAssets/nightstand_01",
+      "category": "furniture",
+      "objectName": "Nightstand",
+      "position": { "x": -1.6, "y": 0, "z": 2.5 },
+      "rotation": { "x": 0, "y": 0, "z": 0 },
+      "scale": { "x": 1, "y": 1, "z": 1 }
+    },
+    {
+      "objectId": "desk_001",
+      "assetPath": "MockAssets/desk_01",
+      "category": "furniture",
+      "objectName": "Writing Desk",
+      "position": { "x": 3.2, "y": 0, "z": -1.5 },
+      "rotation": { "x": 0, "y": -90, "z": 0 },
+      "scale": { "x": 1, "y": 1, "z": 1 }
+    },
+    {
+      "objectId": "chair_001",
+      "assetPath": "MockAssets/chair_01",
+      "category": "furniture",
+      "objectName": "Desk Chair",
+      "position": { "x": 2.2, "y": 0, "z": -1.5 },
+      "rotation": { "x": 0, "y": 90, "z": 0 },
+      "scale": { "x": 1, "y": 1, "z": 1 }
+    },
+    {
+      "objectId": "lamp_001",
+      "assetPath": "MockAssets/lamp_01",
+      "category": "decoration",
+      "objectName": "Table Lamp",
+      "position": { "x": -1.6, "y": 0.55, "z": 2.5 },
+      "rotation": { "x": 0, "y": 0, "z": 0 },
+      "scale": { "x": 0.6, "y": 0.6, "z": 0.6 }
+    }
+  ],
+  "reasoning": "Bed on the back wall with a nightstand and table lamp adjacent. Writing desk + chair tucked into the opposite corner. Mesh-backed Polyhaven assets via MockAssets/ Resources path."
+}

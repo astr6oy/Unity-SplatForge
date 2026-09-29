@@ -1,0 +1,23 @@
+{
+    "name": "SplatForge.Editor",
+    "rootNamespace": "SplatForge.Editor",
+    "references": [
+        "SplatForge.Runtime",
+        "GaussianSplatting",
+        "GaussianSplattingEditor",
+        "Unity.RenderPipelines.HighDefinition.Runtime",
+        "Unity.RenderPipelines.HighDefinition.Config.Runtime",
+        "Unity.RenderPipelines.Core.Runtime"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

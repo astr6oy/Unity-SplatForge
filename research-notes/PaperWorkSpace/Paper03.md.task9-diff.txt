@@ -1,0 +1,327 @@
+--- /Users/oz6oy/repos/3DGS/projects/unity-splatforge/research-notes/PaperWorkSpace/Paper03.md	2026-05-11 21:42:56
++++ /Users/oz6oy/repos/3DGS/projects/unity-splatforge/research-notes/PaperWorkSpace/Paper03.md.task9-preview	2026-05-12 09:49:45
+@@ -63,13 +63,13 @@
+ 
+ 본 연구는 추가로 macOS Apple Silicon 단일 기기에서 학습-임포트-렌더 전 구간 완결이 가능함을 PoC로 입증하였다. Brush(Rust+wgpu Metal, Apache-2.0) 기반 30K iter 학습이 Mip-NeRF360 bonsai에서 PSNR 32.21 dB(원 3DGS 32.4 dB와 0.19 dB 차)를 기록하였고, hloc + LightGlue로 SfM 단계를 1시간 46분에서 51분 6초로 2.07× 단축(종합 wall-clock 1.44× 절감)하면서 PSNR은 ±0.5 dB 허용 범위 내(31.84 dB)로 유지된다. 이로써 CUDA 없는 baseline 품질 경로가 macOS 단일 기기에서 재현 가능함을 실측 입증한다.
+ 
+-본 연구의 좌표를 Kong et al.(2025) 월드 모델 4축 분류(Video / 3D-scene / Interactive / Physical AI)에 비추면, 본 연구는 **3D-scene-based** 축에 인접하면서도 "씬 단위 생성" 대신 "객체 단위 의미론적 배치"를 채택한 별개의 좌표를 점유한다. 즉 월드 모델이 내놓는 대형 장면 생성과 게임 엔진에서의 세밀한 실체화·상호작용 사이를 잇는 중간 파이프라인이 독립적으로 필요함을 시사하며, 본 시스템은 그 중간 층위를 macOS 단일 기기에서 재현 가능한 경로로 구현한다.
++본 연구의 좌표를 Kong 외 [20] 월드 모델 4축 분류(Video / 3D-scene / Interactive / Physical AI)에 비추면, 본 연구는 **3D-scene-based** 축에 인접하면서도 "씬 단위 생성" 대신 "객체 단위 의미론적 배치"를 채택한 별개의 좌표를 점유한다. 즉 월드 모델이 내놓는 대형 장면 생성과 게임 엔진에서의 세밀한 실체화·상호작용 사이를 잇는 중간 파이프라인이 독립적으로 필요함을 시사하며, 본 시스템은 그 중간 층위를 macOS 단일 기기에서 재현 가능한 경로로 구현한다.
+ 
+ 중심어: 3DGS, LLM, 가구 배치 자동화, Unity, 하이브리드 저작, Brush, hloc, macOS Apple Silicon, 월드 모델
+ 
+ ## Abstract
+ 
+-Manually placing furniture in a game-engine scene is tedious and slow, especially during iterative prototyping. Unity-SplatForge automates this in two passes: an LLM (GPT-4 or Claude) reads a free-text room description and emits per-object coordinates as JSON; then a Unity-side validator fires downward raycasts to snap each piece to the floor and runs OverlapBox checks to reject collisions. Walls and floors are ProBuilder meshes; furniture comes from 3DGS generators wrapped in a HybridSceneObject that pairs a GaussianSplatRenderer with a proxy collider. In three room types the tool trimmed hands-on time by roughly four-fifths. A Phase 2 sweep (3 scenarios × 3 conditions × N=5 × mock and openai providers, 90 trials in total) shows that switching from a mock provider to a real LLM (gpt-4o-mini, $0.0094 USD total spend) raises Floor Adhesion from 14.29% to 42.86% (×3.0~3.4) on bedroom and office, cuts collision counts by ~28~60% (36~50 → 20~30 per scene), and incurs only +4~12% wall-clock overhead (30~103 ms/trial). Replacing the LLM with uniform-random placement under the same physics pass collapses Semantic Proximity by ~75~80% (e.g., 0.79 → 0.19 for bedroom, 0.67 → 0.17 for office), confirming quantitatively that the two layers cannot substitute for each other. We additionally demonstrate a CUDA-free single-machine reconstruction path on macOS Apple Silicon: Brush (Rust+wgpu Metal, Apache-2.0) reaches 32.21 dB PSNR on Mip-NeRF360 bonsai at 30K iterations (within 0.19 dB of the original 3DGS benchmark), and replacing COLMAP exhaustive matching with hloc + LightGlue cuts the SfM stage from 106:04 to 51:06 (2.07×), reducing total wall-clock by 1.44× while keeping PSNR within ±0.5 dB. Relative to the Kong et al. (2025) four-fold taxonomy of world models (Video / 3D-scene / Interactive / Physical AI), Unity-SplatForge sits adjacent to the **3D-scene-based** axis but occupies a distinct coordinate by replacing whole-scene generation with object-level semantic placement, providing the missing intermediate layer between large-scale world-model scene synthesis and engine-native physical embodiment.
++Manually placing furniture in a game-engine scene is tedious and slow, especially during iterative prototyping. Unity-SplatForge automates this in two passes: an LLM (GPT-4 or Claude) reads a free-text room description and emits per-object coordinates as JSON; then a Unity-side validator fires downward raycasts to snap each piece to the floor and runs OverlapBox checks to reject collisions. Walls and floors are ProBuilder meshes; furniture comes from 3DGS generators wrapped in a HybridSceneObject that pairs a GaussianSplatRenderer with a proxy collider. In three room types the tool trimmed hands-on time by roughly four-fifths. A Phase 2 sweep (3 scenarios × 3 conditions × N=5 × mock and openai providers, 90 trials in total) shows that switching from a mock provider to a real LLM (gpt-4o-mini, $0.0094 USD total spend) raises Floor Adhesion from 14.29% to 42.86% (×3.0~3.4) on bedroom and office, cuts collision counts by ~28~60% (36~50 → 20~30 per scene), and incurs only +4~12% wall-clock overhead (30~103 ms/trial). Replacing the LLM with uniform-random placement under the same physics pass collapses Semantic Proximity by ~75~80% (e.g., 0.79 → 0.19 for bedroom, 0.67 → 0.17 for office), confirming quantitatively that the two layers cannot substitute for each other. We additionally demonstrate a CUDA-free single-machine reconstruction path on macOS Apple Silicon: Brush (Rust+wgpu Metal, Apache-2.0) reaches 32.21 dB PSNR on Mip-NeRF360 bonsai at 30K iterations (within 0.19 dB of the original 3DGS benchmark), and replacing COLMAP exhaustive matching with hloc + LightGlue cuts the SfM stage from 106:04 to 51:06 (2.07×), reducing total wall-clock by 1.44× while keeping PSNR within ±0.5 dB. Relative to the Kong 외 [20] four-fold taxonomy of world models (Video / 3D-scene / Interactive / Physical AI), Unity-SplatForge sits adjacent to the **3D-scene-based** axis but occupies a distinct coordinate by replacing whole-scene generation with object-level semantic placement, providing the missing intermediate layer between large-scale world-model scene synthesis and engine-native physical embodiment.
+ 
+ Keywords: 3DGS, LLM, furniture layout automation, Unity, hybrid authoring, Brush, hloc, macOS Apple Silicon, world models
+ 
+@@ -77,15 +77,15 @@
+ 
+ ### 1.1. 연구의 배경
+ 
+-인공지능의 관심사가 텍스트·이미지·영상을 넘어 **공간**으로 이동하고 있다. GPT-4(OpenAI, 2023)와 Claude(Anthropic, 2024)로 대표되는 거대 언어 모델(LLM)은 자연어와 코드를 넘어 3차원 공간 관계에 대한 초보적 추론까지 시도할 수 있게 되었고(Feng et al., 2023; Yang et al., 2024), 2D 확산 모델을 3D 표현으로 증류하는 방법(Poole et al., 2023; Tang et al., 2024a)을 통해 한 장의 문장으로부터 일관된 3차원 장면을 합성하는 단계에 이르렀다. 생성형 AI가 다루는 표현의 차원이 한 축씩 늘어나는 흐름으로 볼 수 있다.
++인공지능의 관심사가 텍스트·이미지·영상을 넘어 **공간**으로 이동하고 있다. GPT-4[14]와 Claude[15]로 대표되는 거대 언어 모델(LLM)은 자연어와 코드를 넘어 3차원 공간 관계에 대한 초보적 추론까지 시도할 수 있게 되었고[10, 11], 2D 확산 모델을 3D 표현으로 증류하는 방법[5, 7]을 통해 한 장의 문장으로부터 일관된 3차원 장면을 합성하는 단계에 이르렀다. 생성형 AI가 다루는 표현의 차원이 한 축씩 늘어나는 흐름으로 볼 수 있다.
+ 
+-이 흐름의 최근 국면은 **월드 모델(world model)** 이라는 이름 아래 한 단계 더 진행되고 있다. NVIDIA가 공개한 Cosmos 계열과 Lyra(Wang et al., 2025; NVIDIA, 2026), DeepMind의 Genie 2(DeepMind, 2024)[24], World Labs가 선보인 Marble(World Labs, 2025)[26] 등은 단발성 이미지나 에셋이 아니라 **상호작용 가능한 세계 자체**를 모델이 학습·생성하려는 시도다. Fei-Fei Li는 이를 언어 지능 다음 단계의 **공간 지능(spatial intelligence)** 이라 부르며 이 방향의 중요성을 강조하였고, 2024-2026년의 짧은 기간 사이에 관련 시스템은 학계와 산업계 모두에서 급속도로 성숙하고 있다.
++이 흐름의 최근 국면은 **월드 모델(world model)** 이라는 이름 아래 한 단계 더 진행되고 있다. NVIDIA가 공개한 Cosmos 계열과 Lyra[21, 22], DeepMind의 Genie 2[24], World Labs가 선보인 Marble[26] 등은 단발성 이미지나 에셋이 아니라 **상호작용 가능한 세계 자체**를 모델이 학습·생성하려는 시도다. Fei-Fei Li는 이를 언어 지능 다음 단계의 **공간 지능(spatial intelligence)** 이라 부르며 이 방향의 중요성을 강조하였고, 2024-2026년의 짧은 기간 사이에 관련 시스템은 학계와 산업계 모두에서 급속도로 성숙하고 있다.
+ 
+ 다만 이들 월드 모델은 대체로 **장면의 생성**에 무게가 실린다. 즉 "공간을 어떻게 만들어 낼 것인가"에 답하는 데 초점이 있으며, 그렇게 만들어진 공간이 **기존 게임 엔진의 물리·논리 체계 안에서 어떻게 실제로 기능하도록 만들 것인가**는 상대적으로 덜 다뤄진 질문이다. 본 연구는 이 후자의 층위를 향한다. 생성형 3DGS가 제공하는 시각적으로 설득력 있는 에셋과 LLM이 내놓는 의미론적 배치 지시를 **Unity 물리 엔진의 검증 루프 안에서 결합**하여, 생성된 세계가 캐릭터의 이동·충돌·게임 이벤트에 반응하는 실체로 전환되도록 하는 것이 본 연구의 목표다.
+ 
+ 거시적 배경을 이렇게 놓고 보면 실무의 문제가 새삼 또렷해진다. Unity나 Unreal 같은 게임 엔진에서 방 하나를 꾸미는 작업은 겉보기보다 손이 많이 간다. 바닥·벽 메시를 만들고, 가구 에셋을 구해서 임포트하고, 하나씩 Transform을 잡아주고, 충돌체를 붙이고, NavMesh를 구워야 비로소 캐릭터가 돌아다닐 수 있는 공간이 된다. 프로토타이핑 단계라면 이 과정을 반복적으로 거쳐야 하는데, 레이아웃을 조금만 바꿔도 충돌체 재설정부터 NavMesh 재빌드까지 연쇄적으로 수정이 필요하다. 월드 모델이 약속하는 "자연어로 공간을 얻는" 미래와 현재 현장에서 손으로 공간을 짓는 관행 사이에는, 두 세계를 이어줄 **중간 파이프라인**이 빠져 있다.
+ 
+-한편 현재 시점의 기술 토대를 가까이서 보면, 생성형 AI 쪽에서 두 갈래의 발전이 눈에 띈다. 하나는 3D Gaussian Splatting(3DGS)인데, Kerbl et al.(2023)이 제안한 이후 NeRF를 빠르게 대체하며 novel view synthesis의 사실상 표준이 되었다. 학습 시간이 NeRF의 48시간에서 40분대로 줄고 렌더링이 100fps 이상 나온다는 점은 이미 널리 알려져 있고(Chen & Wang, 2024), DreamGaussian(Tang et al., 2024a) 같은 후속 연구는 텍스트만으로 3DGS 에셋을 생성하는 단계까지 와 있다. 다른 하나는 앞서 언급한 LLM의 공간 추론 능력이다. "침대 옆에 협탁을 놓아라" 같은 지시를 좌표로 변환하는 것이 원리적으로 가능하다는 점은 LayoutGPT(Feng et al., 2023)나 Holodeck(Yang et al., 2024) 등의 선행 연구가 보여주었다.
++한편 현재 시점의 기술 토대를 가까이서 보면, 생성형 AI 쪽에서 두 갈래의 발전이 눈에 띈다. 하나는 3D Gaussian Splatting(3DGS)인데, Kerbl 외 [1]이 제안한 이후 NeRF를 빠르게 대체하며 novel view synthesis의 사실상 표준이 되었다. 학습 시간이 NeRF의 48시간에서 40분대로 줄고 렌더링이 100fps 이상 나온다는 점은 이미 널리 알려져 있고[3], DreamGaussian[7] 같은 후속 연구는 텍스트만으로 3DGS 에셋을 생성하는 단계까지 와 있다. 다른 하나는 앞서 언급한 LLM의 공간 추론 능력이다. "침대 옆에 협탁을 놓아라" 같은 지시를 좌표로 변환하는 것이 원리적으로 가능하다는 점은 LayoutGPT[10]나 Holodeck[11] 등의 선행 연구가 보여주었다.
+ 
+ 문제는 이 기술들이 따로 놀고 있다는 점이다. 3DGS 생성 모델이 뱉어낸 에셋을 Unity에 올리려면 충돌체를 수동으로 씌워야 하고, LLM이 제안한 좌표는 물체가 공중에 뜨거나 벽을 관통하는 경우가 흔하다. 두 기술을 엮어 하나의 파이프라인으로 만드는 시도가 눈에 띄지 않는 상황이며, 월드 모델의 대형 담론과 게임 엔진의 실제 현장 사이에 놓인 이 간극에서 본 연구가 출발한다.
+ 
+@@ -103,33 +103,33 @@
+ 
+ ### 2.1. 3D Gaussian Splatting
+ 
+-3DGS는 장면을 수십만 개의 비등방성(anisotropic) 가우시안 타원체 집합으로 나타내는 표현법이다(Kerbl et al., 2023). 각 가우시안은 3D 위치(mean), 공분산 행렬이 결정하는 형태·방향, 구면 조화 계수로 인코딩된 색상, 그리고 투명도로 정의된다. 이를 타일 기반 래스터라이저로 그리면 1080p에서 100fps 이상이 나오는데, NeRF(Mildenhall et al., 2020)가 같은 해상도에서 0.1fps 수준인 것과 비교하면 세 자릿수 차이다(Zhou et al., 2024). 이 속도 이점은 후속 서베이(Chen & Wang, 2024)에서도 재확인된다.
++3DGS는 장면을 수십만 개의 비등방성(anisotropic) 가우시안 타원체 집합으로 나타내는 표현법이다[1]. 각 가우시안은 3D 위치(mean), 공분산 행렬이 결정하는 형태·방향, 구면 조화 계수로 인코딩된 색상, 그리고 투명도로 정의된다. 이를 타일 기반 래스터라이저로 그리면 1080p에서 100fps 이상이 나오는데, NeRF[2]가 같은 해상도에서 0.1fps 수준인 것과 비교하면 세 자릿수 차이다[4]. 이 속도 이점은 후속 서베이[3]에서도 재확인된다.
+ 
+-3DGS가 가진 또 다른 특징은 명시적(explicit) 표현이라는 점이다. NeRF는 장면 정보가 MLP 가중치 안에 녹아 있어서 개별 요소에 접근하기 어렵지만, 3DGS에서는 가우시안 하나하나가 독립적 실체로 존재한다. 덕분에 특정 가우시안을 골라 옮기거나 지우는 것이 원리상 가능하며, 게임이나 인터랙티브 응용처럼 장면 요소를 사후적으로 조작해야 하는 시나리오에 유리하다. GaussianEditor(Chen et al., 2024)는 이 명시성을 전면에 활용한 대표 사례로, 텍스트 지시에 따라 특정 영역의 가우시안을 선택·편집·삭제하는 스위프트 파이프라인을 제시하였다. 게임 현장 관점에서는 이러한 편집 자유도가 결국 "만들어 놓고 나중에 손볼 수 있는가"라는 실무적 질문과 직결된다.
++3DGS가 가진 또 다른 특징은 명시적(explicit) 표현이라는 점이다. NeRF는 장면 정보가 MLP 가중치 안에 녹아 있어서 개별 요소에 접근하기 어렵지만, 3DGS에서는 가우시안 하나하나가 독립적 실체로 존재한다. 덕분에 특정 가우시안을 골라 옮기거나 지우는 것이 원리상 가능하며, 게임이나 인터랙티브 응용처럼 장면 요소를 사후적으로 조작해야 하는 시나리오에 유리하다. GaussianEditor[18]는 이 명시성을 전면에 활용한 대표 사례로, 텍스트 지시에 따라 특정 영역의 가우시안을 선택·편집·삭제하는 스위프트 파이프라인을 제시하였다. 게임 현장 관점에서는 이러한 편집 자유도가 결국 "만들어 놓고 나중에 손볼 수 있는가"라는 실무적 질문과 직결된다.
+ 
+-명시성에 동반되는 또 다른 이점은 스트리밍·압축 측면에서 확인된다. 대규모 장면에서 가우시안 수가 수백만 단위로 늘어나면 메모리와 대역폭이 병목으로 작용하는데, LS-Gaussian(Wei et al., 2025)은 중복 가우시안을 걸러내고 뷰 종속적 선택적 렌더링을 적용해 실시간 스트리밍을 가능하게 하였다. 본 연구의 범위는 단일 방 규모이지만, 건물·도시 단위로 확장될 때는 이런 경량화 기법과의 결합이 자연스러운 다음 단계가 된다.
++명시성에 동반되는 또 다른 이점은 스트리밍·압축 측면에서 확인된다. 대규모 장면에서 가우시안 수가 수백만 단위로 늘어나면 메모리와 대역폭이 병목으로 작용하는데, LS-Gaussian[17]은 중복 가우시안을 걸러내고 뷰 종속적 선택적 렌더링을 적용해 실시간 스트리밍을 가능하게 하였다. 본 연구의 범위는 단일 방 규모이지만, 건물·도시 단위로 확장될 때는 이런 경량화 기법과의 결합이 자연스러운 다음 단계가 된다.
+ 
+ 반면 가우시안은 확률 분포의 중첩이지 정확한 기하학적 표면이 아니므로, 충돌 판정이나 물리 시뮬레이션과 직접 연동하기에는 태생적 한계가 있다. 이 한계를 완화하려는 연구는 2.6에서 별도로 다룬다.
+ 
+ ### 2.2. 생성형 3D 모델링
+ 
+-텍스트나 이미지로부터 3D 에셋을 만들어내는 연구의 기점은 DreamFusion(Poole et al., 2023)이다. 사전 학습된 2D 확산 모델의 지식을 Score Distillation Sampling(SDS)으로 3D 표현에 증류하는 방식을 제안했고, Magic3D(Lin et al., 2023)가 coarse-to-fine 전략으로 품질을 끌어올렸다. 이 계열은 NeRF 기반이라 렌더링 속도가 느려 실시간 응용에 쓰기 힘들었다.
++텍스트나 이미지로부터 3D 에셋을 만들어내는 연구의 기점은 DreamFusion[5]이다. 사전 학습된 2D 확산 모델의 지식을 Score Distillation Sampling(SDS)으로 3D 표현에 증류하는 방식을 제안했고, Magic3D[6]가 coarse-to-fine 전략으로 품질을 끌어올렸다. 이 계열은 NeRF 기반이라 렌더링 속도가 느려 실시간 응용에 쓰기 힘들었다.
+ 
+-전환점은 DreamGaussian(Tang et al., 2024a)이었다. SDS 최적화를 3DGS에 적용해 생성 시간을 수 분대로 줄인 것이다. 이후 GaussianDreamer(Yi et al., 2024), LGM(Tang et al., 2024b) 등이 잇따라 나오며 텍스트·이미지 한 장으로부터 단일 객체의 3DGS 에셋을 얻는 흐름이 자리 잡았다.
++전환점은 DreamGaussian[7]이었다. SDS 최적화를 3DGS에 적용해 생성 시간을 수 분대로 줄인 것이다. 이후 GaussianDreamer[8], LGM[9] 등이 잇따라 나오며 텍스트·이미지 한 장으로부터 단일 객체의 3DGS 에셋을 얻는 흐름이 자리 잡았다.
+ 
+-단일 객체를 넘어 **장면 규모**의 생성으로 올라가면 과제의 성격이 달라진다. 여러 객체의 공간적 관계, 일관된 조명, 가용 표면과의 정합성 같은 새로운 제약이 더해지기 때문이다. DreamScene(Li et al., 2024)은 GPT-4 계열 에이전트가 언어 프롬프트로부터 장면의 의미적·공간적 제약을 추론하고, 이를 바탕으로 하이브리드 그래프 레이아웃을 구성한 뒤 formation pattern sampling으로 3DGS 장면을 합성한다. SceneTeller(Öcal et al., 2024) 역시 내러티브 성격의 언어 입력으로부터 장면 레이아웃을 도출하고 CAD·3DGS를 조합해 시각적 결과를 산출한다. 최근에는 SceneSplat(Li et al., 2025)처럼 언어 임베딩을 가우시안에 결합하여 open-vocabulary 장면 이해·편집을 시도하는 연구도 나타났다.
++단일 객체를 넘어 **장면 규모**의 생성으로 올라가면 과제의 성격이 달라진다. 여러 객체의 공간적 관계, 일관된 조명, 가용 표면과의 정합성 같은 새로운 제약이 더해지기 때문이다. DreamScene[34]은 GPT-4 계열 에이전트가 언어 프롬프트로부터 장면의 의미적·공간적 제약을 추론하고, 이를 바탕으로 하이브리드 그래프 레이아웃을 구성한 뒤 formation pattern sampling으로 3DGS 장면을 합성한다. SceneTeller[33] 역시 내러티브 성격의 언어 입력으로부터 장면 레이아웃을 도출하고 CAD·3DGS를 조합해 시각적 결과를 산출한다. 최근에는 SceneSplat[37]처럼 언어 임베딩을 가우시안에 결합하여 open-vocabulary 장면 이해·편집을 시도하는 연구도 나타났다.
+ 
+ 다만 이런 모델들의 출력물을 곧바로 게임에 쓸 수 있는 것은 아니다. 충돌체도 없고, 개별 객체 단위의 메타데이터도 없으며, 엔진 물리·이벤트 시스템과의 연결은 여전히 개발자의 몫으로 남는다. 장면을 "합성하는" 단계와 게임 엔진 안에서 "운용하는" 단계 사이의 간극을 다루는 체계적 후처리 파이프라인에 대한 논의는 상대적으로 얇은 편이다.
+ 
+ ### 2.3. LLM과 공간 추론
+ 
+-LLM을 실내 가구 배치에 활용하는 연구는 2023년 이후 빠르게 늘고 있다. 출발점은 LayoutGPT(Feng et al., 2023)로, in-context learning을 통해 가구 좌표를 CSS 비슷한 선언적 명세로 출력하는 방법을 제시하였다. Holodeck(Yang et al., 2024)은 이 접근을 Habitat 시뮬레이터로 확장해 주거 공간 전체를 LLM이 구성하도록 만들었다.
++LLM을 실내 가구 배치에 활용하는 연구는 2023년 이후 빠르게 늘고 있다. 출발점은 LayoutGPT[10]로, in-context learning을 통해 가구 좌표를 CSS 비슷한 선언적 명세로 출력하는 방법을 제시하였다. Holodeck[11]은 이 접근을 Habitat 시뮬레이터로 확장해 주거 공간 전체를 LLM이 구성하도록 만들었다.
+ 
+-이 연구들이 공통적으로 보고하는 문제가 있다. LLM은 "침실에는 침대가 있어야 한다"거나 "책상 앞에 의자를 둔다" 같은 상식적 관계는 잘 잡는다. 하지만 좌표의 물리적 타당성은 다른 문제다. 가구가 허공에 뜨거나 벽을 뚫고 나가거나 다른 물체와 겹치는 사례가 빈번하게 보고되었다(Feng et al., 2023; Yang et al., 2024). 근본 원인은 명확한데, LLM은 텍스트 토큰 공간에서 작동하지 유클리드 기하학을 내재적으로 계산하지는 않기 때문이다.
++이 연구들이 공통적으로 보고하는 문제가 있다. LLM은 "침실에는 침대가 있어야 한다"거나 "책상 앞에 의자를 둔다" 같은 상식적 관계는 잘 잡는다. 하지만 좌표의 물리적 타당성은 다른 문제다. 가구가 허공에 뜨거나 벽을 뚫고 나가거나 다른 물체와 겹치는 사례가 빈번하게 보고되었다[10, 11]. 근본 원인은 명확한데, LLM은 텍스트 토큰 공간에서 작동하지 유클리드 기하학을 내재적으로 계산하지는 않기 때문이다.
+ 
+-이 한계를 보완하려는 시도는 대체로 세 갈래로 정리된다. 첫째는 **시각 정보의 도입**이다. LayoutVLM(Sun et al., 2025)은 vision-language 모델이 렌더링된 장면을 관측하며 좌표를 미분 가능한 최적화 루프 안에서 갱신하도록 설계하였고, 언어만으로는 잡히지 않던 배치의 시각적 합리성을 개선하였다. 둘째는 **다중 에이전트 정교화**이다. DisCo-Layout/OptiScene(Liu et al., 2025)은 대략적 레이아웃을 제안하는 에이전트와 이를 비판·수정하는 에이전트를 분리하여, 단일 프롬프트 응답의 오류를 반복 대화로 누그러뜨리는 접근을 보인다. 셋째는 **내러티브·의미 중심 입력**이다. SceneTeller(Öcal et al., 2024)는 "아늑한 서재, 창가에 책상" 같은 짧은 내러티브로부터 레이아웃을 도출하며, 프롬프트의 자연스러움과 결과의 의미적 일관성 사이의 연결을 시도한다. 한편 3DGraphLLM(Zemskova & Yudin, 2025)은 3D scene graph를 LLM의 입력 표현으로 끌어들여 관계 중심 추론을 강화하는 계열로, 위의 세 갈래와는 다른 축에서 공간 이해를 보강한다. 넷째 축으로 **오픈소스 LLM 파인튜닝**을 별도로 구분할 수 있다. LLplace(Yang & Lu, 2024)[49]는 Llama-3 계열 오픈 모델을 3D 실내 레이아웃 데이터로 파인튜닝해, 상용 API(GPT-4 등)에 의존하지 않고도 LayoutGPT·Holodeck 계보의 배치 품질을 재현하며 대화형 수정(가구 추가·삭제·이동) 기능까지 확보하였다. 이 갈래는 프롬프트 엔지니어링에 기대는 앞의 세 접근과 달리, 모델 가중치 자체에 공간 상식을 주입한다는 점에서 축을 달리한다.
++이 한계를 보완하려는 시도는 대체로 세 갈래로 정리된다. 첫째는 **시각 정보의 도입**이다. LayoutVLM[32]은 vision-language 모델이 렌더링된 장면을 관측하며 좌표를 미분 가능한 최적화 루프 안에서 갱신하도록 설계하였고, 언어만으로는 잡히지 않던 배치의 시각적 합리성을 개선하였다. 둘째는 **다중 에이전트 정교화**이다. DisCo-Layout/OptiScene[36]은 대략적 레이아웃을 제안하는 에이전트와 이를 비판·수정하는 에이전트를 분리하여, 단일 프롬프트 응답의 오류를 반복 대화로 누그러뜨리는 접근을 보인다. 셋째는 **내러티브·의미 중심 입력**이다. SceneTeller[33]는 "아늑한 서재, 창가에 책상" 같은 짧은 내러티브로부터 레이아웃을 도출하며, 프롬프트의 자연스러움과 결과의 의미적 일관성 사이의 연결을 시도한다. 한편 3DGraphLLM[38]은 3D scene graph를 LLM의 입력 표현으로 끌어들여 관계 중심 추론을 강화하는 계열로, 위의 세 갈래와는 다른 축에서 공간 이해를 보강한다. 넷째 축으로 **오픈소스 LLM 파인튜닝**을 별도로 구분할 수 있다. LLplace[49]는 Llama-3 계열 오픈 모델을 3D 실내 레이아웃 데이터로 파인튜닝해, 상용 API(GPT-4 등)에 의존하지 않고도 LayoutGPT·Holodeck 계보의 배치 품질을 재현하며 대화형 수정(가구 추가·삭제·이동) 기능까지 확보하였다. 이 갈래는 프롬프트 엔지니어링에 기대는 앞의 세 접근과 달리, 모델 가중치 자체에 공간 상식을 주입한다는 점에서 축을 달리한다.
+ 
+-평가용 데이터셋 측면에서는 FurniScene(Zhang et al., 2024)[50]이 주목할 만하다. 11,698개 실내 방과 39,691개 가구 인스턴스에 전문가 배치 메타데이터를 부착하여, LLM 레이아웃 출력의 의미적·기하적 타당성을 대규모로 벤치마크할 수 있는 기반을 제공한다. 본 연구는 단일 프로젝트 규모에 집중해 FurniScene를 직접 평가 지표로 채택하지는 않으나, Semantic Proximity 점수의 외부 ground truth로 향후 확장 가능한 자원이다.
++평가용 데이터셋 측면에서는 FurniScene[50]이 주목할 만하다. 11,698개 실내 방과 39,691개 가구 인스턴스에 전문가 배치 메타데이터를 부착하여, LLM 레이아웃 출력의 의미적·기하적 타당성을 대규모로 벤치마크할 수 있는 기반을 제공한다. 본 연구는 단일 프로젝트 규모에 집중해 FurniScene를 직접 평가 지표로 채택하지는 않으나, Semantic Proximity 점수의 외부 ground truth로 향후 확장 가능한 자원이다.
+ 
+ 요약하면 이 분야의 발전 축은 **단발성 제안(single-shot) → 반복 정교화(multi-agent) → 시각 접지(vision-grounded)** 방향으로 이동하고 있으며, 공통된 기저 문제—좌표 출력의 물리적 타당성—는 여전히 외부 검증 장치에 의존한다. 본 연구는 이 외부 검증자 역할을 게임 엔진의 물리 시스템이 맡도록 한다는 점에서 위 세 갈래와 다른 축에 서 있다.
+ 
+@@ -137,19 +137,19 @@
+ 
+ AI가 만든 3D 콘텐츠를 게임 엔진 안에서 실제로 돌리는 연구는 아직 얇은 편이다. Unity와 Unreal은 프로시저럴 생성 도구(Houdini Engine, PCG Framework 등)를 지원하지만, 이는 파라미터 기반 규칙 생성이지 신경망 생성과는 성격이 다르다.
+ 
+-3DGS의 Unity 통합에서는 UnityGaussianSplatting(Aras-p, 2023)이 사실상 유일한 실용적 프레임워크다. D3D12, Metal, Vulkan을 지원하고 Quest 3 같은 VR 기기에서도 동작한다. 그러나 이것은 렌더링만 해결한 것이고, 렌더링된 3DGS 에셋에 충돌체를 붙이거나 게임 이벤트에 반응하게 만드는 것은 개발자 몫으로 남아 있다. 실무 적용 사례로 Baltsavias et al.(2025)[51]은 문화유산 도메인에서 3DGS와 게임 엔진의 폴리곤 메시를 하나의 씬 안에서 교차 렌더링하는 하이브리드 파이프라인을 SIGGRAPH Talk로 보고하였는데, 이는 3DGS가 연구실 데모를 넘어 제작 파이프라인 단계에 들어섰음을 시사한다. 본 연구의 HybridSceneObject 설계는 이 공백을 메우기 위한 것이다.
++3DGS의 Unity 통합에서는 UnityGaussianSplatting[12]이 사실상 유일한 실용적 프레임워크다. D3D12, Metal, Vulkan을 지원하고 Quest 3 같은 VR 기기에서도 동작한다. 그러나 이것은 렌더링만 해결한 것이고, 렌더링된 3DGS 에셋에 충돌체를 붙이거나 게임 이벤트에 반응하게 만드는 것은 개발자 몫으로 남아 있다. 실무 적용 사례로 Baltsavias 외 [51]은 문화유산 도메인에서 3DGS와 게임 엔진의 폴리곤 메시를 하나의 씬 안에서 교차 렌더링하는 하이브리드 파이프라인을 SIGGRAPH Talk로 보고하였는데, 이는 3DGS가 연구실 데모를 넘어 제작 파이프라인 단계에 들어섰음을 시사한다. 본 연구의 HybridSceneObject 설계는 이 공백을 메우기 위한 것이다.
+ 
+-LLM과 게임 엔진을 잇는 흐름은 종전에는 NPC 대화 생성(Park et al., 2023) 쪽에 집중되어 있었으나, 최근에는 **공간 저작·에셋 관리**로 확산되고 있다. 2026년 초 공개된 Unity 공식 AI Assistant 2.0(Unity Technologies, 2026)은 Model Context Protocol(MCP) 기반 에디터 통합을 제공해, Claude Code나 Cursor 같은 외부 에이전트가 자연어 지시로 씬을 생성하거나 에셋을 재배치하고 스크립트를 편집할 수 있게 한다. 이 공식 경로와 별개로 CoplayDev·CoderGamester 등이 운영하는 커뮤니티 MCP 구현도 활발하며, ai-powered-level-designer(TaaroBravo, 2025)처럼 Unity 6 에디터 확장 형태로 자연어 레벨 설계를 시도하는 개인 프로젝트도 나타났다. 다만 이들 MCP 계열은 대부분 **에디터 전용**이라는 점에서 런타임 배포본에서 동일 기능이 보장되지 않으며, 연구 재현성이 중요한 학위 논문 평가에는 제약이 따른다.
++LLM과 게임 엔진을 잇는 흐름은 종전에는 NPC 대화 생성[13] 쪽에 집중되어 있었으나, 최근에는 **공간 저작·에셋 관리**로 확산되고 있다. 2026년 초 공개된 Unity 공식 AI Assistant 2.0[39]은 Model Context Protocol(MCP) 기반 에디터 통합을 제공해, Claude Code나 Cursor 같은 외부 에이전트가 자연어 지시로 씬을 생성하거나 에셋을 재배치하고 스크립트를 편집할 수 있게 한다. 이 공식 경로와 별개로 CoplayDev·CoderGamester 등이 운영하는 커뮤니티 MCP 구현도 활발하며, ai-powered-level-designer[40]처럼 Unity 6 에디터 확장 형태로 자연어 레벨 설계를 시도하는 개인 프로젝트도 나타났다. 다만 이들 MCP 계열은 대부분 **에디터 전용**이라는 점에서 런타임 배포본에서 동일 기능이 보장되지 않으며, 연구 재현성이 중요한 학위 논문 평가에는 제약이 따른다.
+ 
+-공간 레이아웃 목적의 기성 통합으로는 Holodeck(Yang et al., 2024)이 있으나 Habitat 기반이라 Unity·Unreal의 물리 시스템과는 거리가 있다. 본 연구는 에디터 편의에 의존하지 않는 REST API 아키텍처로 LLM 좌표 제안과 런타임 물리 검증을 결합한다는 점에서, MCP 계열과는 다른 축에 자리한다.
++공간 레이아웃 목적의 기성 통합으로는 Holodeck[11]이 있으나 Habitat 기반이라 Unity·Unreal의 물리 시스템과는 거리가 있다. 본 연구는 에디터 편의에 의존하지 않는 REST API 아키텍처로 LLM 좌표 제안과 런타임 물리 검증을 결합한다는 점에서, MCP 계열과는 다른 축에 자리한다.
+ 
+ ### 2.4.5. macOS 생태계의 CUDA-free 3DGS 도구
+ 
+-3DGS 관련 학습·렌더 도구 대부분은 원 3DGS(Kerbl et al., 2023) 구현이 CUDA·C++ 래스터라이저를 전제로 한다는 계보적 이유로 NVIDIA GPU 환경을 가정한다. 본 연구는 개발·검증 환경이 macOS Apple Silicon이라는 제약에서 출발하므로, CUDA 의존 없이 **학습 → PLY → Unity 임포트 → Metal 런타임** 전 구간을 완결할 수 있는 도구 조합을 조사한다.
++3DGS 관련 학습·렌더 도구 대부분은 원 3DGS[1] 구현이 CUDA·C++ 래스터라이저를 전제로 한다는 계보적 이유로 NVIDIA GPU 환경을 가정한다. 본 연구는 개발·검증 환경이 macOS Apple Silicon이라는 제약에서 출발하므로, CUDA 의존 없이 **학습 → PLY → Unity 임포트 → Metal 런타임** 전 구간을 완결할 수 있는 도구 조합을 조사한다.
+ 
+-조사 범위는 2026-04 기준 활발히 유지되는 공개 프로젝트 5건이다. splat-apple(Ghif, 2026; MLX/MPS 이중 경로)[46], Brush(Brussee, 2026; Rust+wgpu 크로스플랫폼)[45], OpenSplat(Tofy, 2025; libtorch MPS)[47], gsplat-mps(Iffyloop, 2024; nerfstudio/gsplat 0.1.3 포크)[48], 그리고 상류 nerfstudio/gsplat(Nerfstudio, 2026; CUDA 전용)이 해당한다. 표 1a는 각 도구의 라이선스·유지 상태·Apple Silicon 성능 수치를 정리한다.
++조사 범위는 2026-04 기준 활발히 유지되는 공개 프로젝트 5건이다. splat-apple(Ghif, 2026; MLX/MPS 이중 경로)[46], Brush(Brussee, 2026; Rust+wgpu 크로스플랫폼)[45], OpenSplat(Tofy, 2025; libtorch MPS)[47], gsplat-mps(Iffyloop, 2024; nerfstudio/gsplat 0.1.3 포크)[48], 그리고 상류 nerfstudio/gsplat(Nerfstudio, 2026; CUDA 전용)이 해당한다. 표 1는 각 도구의 라이선스·유지 상태·Apple Silicon 성능 수치를 정리한다.
+ 
+-<Table 1a> *macOS CUDA-free 3DGS 학습 도구 비교 (2026-04 기준)*
++<Table 1> *macOS CUDA-free 3DGS 학습 도구 비교 (2026-04 기준)*
+ 
+ | 도구 | 백엔드 | 라이선스 | 최근 업데이트 | Stars | Apple Silicon 성능 |
+ |------|-------|---------|--------------|-------|------------------|
+@@ -173,9 +173,9 @@
+ 
+ ### 2.5. 월드 모델
+ 
+-공간을 생성·시뮬레이션하는 기반 모델(foundation model)에 대한 관심은 2024년 말부터 급격히 되살아났다. 개념적 원류는 Ha와 Schmidhuber(2018)[19]의 *World Models*로, 환경의 시공간 표현을 비지도 방식으로 압축해 에이전트가 학습된 내부 시뮬레이션 안에서 훈련할 수 있음을 보였다. 이후 한동안 강화학습 보조 장치로 머물러 있던 이 개념은, LLM의 의미·공간 추론 능력과 생성형 3D 기법의 급성장이 만나며 "세계를 통째로 만들어내는 모델"이라는 형태로 재부상하였다. Kong et al.(2025)[20]은 3D·4D 월드 모델에 한정한 최초의 체계적 서베이를 통해 이 흐름을 비디오 기반, 3D 장면 기반, 상호작용형, 물리 AI 기반의 네 범주로 정리한다. 표 1b는 이 분류 체계와 본 연구의 좌표 관계를 요약한다.
++공간을 생성·시뮬레이션하는 기반 모델(foundation model)에 대한 관심은 2024년 말부터 급격히 되살아났다. 개념적 원류는 Ha 및 Schmidhuber [19]의 *World Models*로, 환경의 시공간 표현을 비지도 방식으로 압축해 에이전트가 학습된 내부 시뮬레이션 안에서 훈련할 수 있음을 보였다. 이후 한동안 강화학습 보조 장치로 머물러 있던 이 개념은, LLM의 의미·공간 추론 능력과 생성형 3D 기법의 급성장이 만나며 "세계를 통째로 만들어내는 모델"이라는 형태로 재부상하였다. Kong 외 [20]은 3D·4D 월드 모델에 한정한 최초의 체계적 서베이를 통해 이 흐름을 비디오 기반, 3D 장면 기반, 상호작용형, 물리 AI 기반의 네 범주로 정리한다. 표 2는 이 분류 체계와 본 연구의 좌표 관계를 요약한다.
+ 
+-<Table 1b> *Kong et al.(2025) 월드 모델 4축 분류와 본 연구와의 거리*
++<Table 2> *Kong 외 [20] 월드 모델 4축 분류와 본 연구와의 거리*
+ 
+ | 축 | 정의 | 대표 모델 | 본 연구와의 거리 |
+ |----|------|----------|----------------|
+@@ -186,9 +186,9 @@
+ 
+ 이 분류에서 본 연구는 **3D-scene-based 축**과 가장 인접하며 3DGS 표현을 공유한다. 다만 월드 모델이 "씬 전체를 한 번에 생성"하는 단위에 집중하는 반면, 본 연구는 LLM이 산출한 scene graph를 따라 **객체 단위**로 3DGS 에셋을 조립·검증한다는 점에서 생성 단위 자체가 다르다. Genie 3[25]나 Cosmos[23] 같은 인접 축의 모델도 각각 인터랙션·물리 prior 측면에서 본 연구와 보완 관계를 형성하나, 본 연구는 이들과 달리 게임 엔진 네이티브 물리·이벤트 시스템과의 즉각 통합을 우선한다.
+ 
+-대표 시스템은 지향점이 서로 다르다. 본 연구와 가장 직접적으로 겹치는 것은 NVIDIA의 Lyra 계열이다. Lyra 1.0(Wang et al., 2025)[21]은 비디오 확산 모델에 잠재된 3D 지식을 self-distillation으로 뽑아 3DGS 표현으로 고정했고, Lyra 2.0(NVIDIA, 2026)[22]은 단일 이미지와 카메라 궤적으로부터 워크스루 비디오를 합성한 뒤 이를 3DGS와 표면 메시로 재구성해 실시간 렌더러와 물리 시뮬레이터에 바로 로드할 수 있게 한다. 같은 회사의 Cosmos(Agrawal et al., 2025)[23]는 로보틱스·자율주행을 위한 월드 파운데이션 모델 플랫폼으로, LLM에 준하는 규모(약 9천조 토큰, 2천만 시간의 실세계 비디오)로 훈련되어 물리 AI의 데이터 병목을 겨냥한다.
++대표 시스템은 지향점이 서로 다르다. 본 연구와 가장 직접적으로 겹치는 것은 NVIDIA의 Lyra 계열이다. Lyra 1.0[21]은 비디오 확산 모델에 잠재된 3D 지식을 self-distillation으로 뽑아 3DGS 표현으로 고정했고, Lyra 2.0[22]은 단일 이미지와 카메라 궤적으로부터 워크스루 비디오를 합성한 뒤 이를 3DGS와 표면 메시로 재구성해 실시간 렌더러와 물리 시뮬레이터에 바로 로드할 수 있게 한다. 같은 회사의 Cosmos[23]는 로보틱스·자율주행을 위한 월드 파운데이션 모델 플랫폼으로, LLM에 준하는 규모(약 9천조 토큰, 2천만 시간의 실세계 비디오)로 훈련되어 물리 AI의 데이터 병목을 겨냥한다.
+ 
+-상호작용 축에서는 DeepMind의 Genie 계열이 대표적이다. Genie 2(DeepMind, 2024)는 단일 프롬프트 이미지에서 키보드·마우스로 조작 가능한 3D 월드를 생성하였고, Genie 3(DeepMind, 2025)[25]는 하드코딩된 물리 엔진 없이 autoregressive 학습만으로 720p·24fps 수준의 실시간 인터랙티브 환경을 수 분간 일관되게 유지한다. World Labs의 Marble(World Labs, 2025)은 "공간 지능(spatial intelligence)"을 프론티어로 내세우며 최초의 상용 generative world model을 표방하고, 텍스트·이미지·파노라마·3D 레이아웃 입력으로부터 편집·다운로드 가능한 지속적 3D 환경을 출력한다. 중국 측에서는 Tencent의 HunyuanWorld 계열이 있다. HunyuanWorld 1.0(Tencent, 2025)[27]은 오픈소스 simulation-capable 3D 월드 생성 모델로서 3DGS를 메시의 대안 표현으로 공식 지원했고, HY-World 2.0(Tencent, 2026)[28]은 멀티모달 입력에서 고해상도 탐험형 3D 월드를 출력한다. 비디오·잠재 공간 계열로는 OpenAI Sora(OpenAI, 2024)[29]의 "video as world simulator" 관점, Meta V-JEPA 2(Assran et al., 2025)[30]의 self-supervised 잠재 예측, Decart Oasis(Decart, 2024)[31]의 실시간 AI Minecraft 클론 등이 인접 계열로 꼽힌다.
++상호작용 축에서는 DeepMind의 Genie 계열이 대표적이다. Genie 2[24]는 단일 프롬프트 이미지에서 키보드·마우스로 조작 가능한 3D 월드를 생성하였고, Genie 3[25]는 하드코딩된 물리 엔진 없이 autoregressive 학습만으로 720p·24fps 수준의 실시간 인터랙티브 환경을 수 분간 일관되게 유지한다. World Labs의 Marble[26]은 "공간 지능(spatial intelligence)"을 프론티어로 내세우며 최초의 상용 generative world model을 표방하고, 텍스트·이미지·파노라마·3D 레이아웃 입력으로부터 편집·다운로드 가능한 지속적 3D 환경을 출력한다. 중국 측에서는 Tencent의 HunyuanWorld 계열이 있다. HunyuanWorld 1.0[27]은 오픈소스 simulation-capable 3D 월드 생성 모델로서 3DGS를 메시의 대안 표현으로 공식 지원했고, HY-World 2.0[28]은 멀티모달 입력에서 고해상도 탐험형 3D 월드를 출력한다. 비디오·잠재 공간 계열로는 OpenAI Sora[29]의 "video as world simulator" 관점, Meta V-JEPA 2[30]의 self-supervised 잠재 예측, Decart Oasis[31]의 실시간 AI Minecraft 클론 등이 인접 계열로 꼽힌다.
+ 
+ 이 흐름과 본 연구의 관계는 대립이라기보다 계층적 보완에 가깝다. 현재 월드 모델 연구의 초점은 대부분 "장면 자체를 만들어내는" 단계에 맞춰져 있다. 모델이 내놓는 산출물은 3DGS·메시·비디오 중 어느 형태든, 여전히 자족적인 장면 표현이며 게임 엔진의 물리·이벤트·내비게이션 시스템과는 별도 층위에 있다. Lyra 2.0[22]이 "실시간 엔진에 로드 가능"이라고 명시하지만, 로드된 이후 각 가우시안 객체에 충돌체가 붙고 LLM이 의미론적으로 재배치하며 물리 검증을 거치는 과정은 별도의 공학적 작업으로 남는다.
+ 
+@@ -198,7 +198,7 @@
+ 
+ 3DGS의 원본 정의에는 질량·마찰 같은 물리 속성이 들어 있지 않다. 장면을 그리는 데 필요한 시각 파라미터만 학습할 뿐이어서, 렌더링이 설득력 있더라도 객체를 "만지거나 부딪히게" 만들려면 별도의 표현이 필요하다. 이 공백을 내재적으로 해결하려는 계열이 2024년을 전후해 형성되었다.
+ 
+-PhysGaussian(Xie et al., 2024)은 가우시안 하나하나에 연속체 역학(continuum mechanics) 프레임을 부여해 탄성·소성·파괴 같은 변형을 직접 시뮬레이션할 수 있게 한 선구적 작업이다. PhysSplat(Zhao et al., 2025)은 여기서 한 걸음 더 나아가, 멀티모달 LLM이 이미지로부터 개별 객체의 물리적 속성(강성, 탄성계수 등)을 추론하고 이를 가우시안 씬에 부여하여 효율적인 시뮬레이션을 수행하는 파이프라인을 제시하였다. 이 계열은 "3DGS 자체가 물리를 이해하는 표현이 되도록" 하는 방향이며, 장기적으로는 엔진 측의 프록시 충돌체 의존을 줄여줄 수 있다.
++PhysGaussian[16]은 가우시안 하나하나에 연속체 역학(continuum mechanics) 프레임을 부여해 탄성·소성·파괴 같은 변형을 직접 시뮬레이션할 수 있게 한 선구적 작업이다. PhysSplat[35]은 여기서 한 걸음 더 나아가, 멀티모달 LLM이 이미지로부터 개별 객체의 물리적 속성(강성, 탄성계수 등)을 추론하고 이를 가우시안 씬에 부여하여 효율적인 시뮬레이션을 수행하는 파이프라인을 제시하였다. 이 계열은 "3DGS 자체가 물리를 이해하는 표현이 되도록" 하는 방향이며, 장기적으로는 엔진 측의 프록시 충돌체 의존을 줄여줄 수 있다.
+ 
+ 본 연구와의 관계는 경쟁이 아닌 **보완**이다. PhysGaussian·PhysSplat은 가우시안 내부에 물리 의미를 주입하는 상향식 연구인 반면, 본 연구는 이미 성숙한 게임 엔진 물리 시스템(Unity PhysX 기반 레이캐스트·OverlapBox)에 3DGS 에셋을 엮는 하향식 통합이다. 실무적으로는 후자가 더 즉각적이다. 렌더링·내비게이션·게임 이벤트가 이미 엔진 안에 존재하므로 에셋에 프록시 콜라이더를 씌우는 최소 수준의 래핑만으로 방 규모 프로토타입이 돌아간다. 다만 세밀한 상호작용(변형·파괴·유체)으로 넘어갈 때는 엔진의 강체 중심 모델이 한계를 드러내며, 이 지점에서 PhysGaussian 계열의 내재화된 물리 표현과의 결합이 자연스러운 확장 경로가 된다.
+ 
+@@ -222,7 +222,7 @@
+ 
+ 초기 설계는 3DGS 학습이 CUDA에 의존한다는 가정 아래 Python+Windows 학습 서버와 Unity 클라이언트의 2-tier 구조를 상정하였다. 그러나 2026-04 macOS 네이티브 도구(Brush[45], Apache-2.0, Rust+wgpu Metal)의 성숙으로 단일 macOS 기기에서 학습-임포트-렌더 전 구간 완결이 가능해지면서, 본 연구는 Python 서버를 LLM 호출과 카탈로그 관리에만 사용하고 학습은 macOS 로컬 Brush로 옮긴 단일 파이프라인을 채택한다(§2.4.5 참조).
+ 
+-<Table 1> *System Components*
++<Table 3> *System Components*
+ 
+ | 계층 | 기술 스택 | 역할 | 핵심 모듈 |
+ | --- | --- | --- | --- |
+@@ -263,15 +263,15 @@
+ 
+ 3DGS 에셋 학습 파이프라인은 두 경로를 갖는다. 하나는 nerfstudio·gsplat 계열의 CUDA 학습기를 Windows 환경에서 운영하는 초기 계획이고, 다른 하나는 Brush[45](ArthurBrussee, Rust·wgpu, Apache-2.0 라이선스)를 macOS에서 직접 실행하는 최근 경로다. Brush는 COLMAP 또는 Nerfstudio 포맷 입력을 받아 Metal·Vulkan·D3D12 등 wgpu 백엔드 위에서 학습을 수행하므로 CUDA 의존 없이 Apple Silicon 기기에서도 전체 파이프라인이 완결된다. 본 연구는 이 경로의 실현 가능성을 2026년 4월 내부 PoC로 확증하였으며, 학습·임포트·렌더의 전 구간이 단일 기기에서 오류 없이 동작함을 확인하였다. 결과 PLY는 aras-p[12] UnityGaussianSplatting이 요구하는 필수 속성(x·y·z 좌표, scale_0-2, opacity, rot_0-3, f_dc_0-2, f_rest)을 모두 만족하며, GaussianSplatAsset 변환 후 런타임 렌더까지 무수정으로 통과하였다.
+ 
+-선행 연구(Kim & Lee 2025[56], paper02-04)에서 본 연구진은 KIRI Engine 클라우드 SaaS로 생성한 3DGS 에셋을 동일 aras-p UnityGaussianSplatting 파이프라인 위에서 검증한 바 있으며, 그림 3은 단일 디지털 조형물(Statue) 에셋의 KIRI Engine 출력 렌더, 그림 4는 동일 자료실에서 3DGS 자전거·더미와 폴리곤 메시 의자를 한 씬에 합성한 하이브리드 렌더이다. 이 선행 사례는 본 연구의 HybridSceneObject 설계가 외부 SaaS 산출 자산까지 동일하게 수용하도록 설계된 배경을 제공한다.
+-
+-![그림 3. 선행 연구(paper02-04, Kim & Lee 2025) — KIRI Engine 출력 단일 3DGS 에셋(Statue) 렌더](figures/kiri-statue-prior-paper02-04.png)
++선행 연구(Kim 및 Lee [56], paper02-04)에서 본 연구진은 KIRI Engine 클라우드 SaaS로 생성한 3DGS 에셋을 동일 aras-p UnityGaussianSplatting 파이프라인 위에서 검증한 바 있으며, 그림 3은 단일 디지털 조형물(Statue) 에셋의 KIRI Engine 출력 렌더, 그림 4는 동일 자료실에서 3DGS 자전거·더미와 폴리곤 메시 의자를 한 씬에 합성한 하이브리드 렌더이다. 이 선행 사례는 본 연구의 HybridSceneObject 설계가 외부 SaaS 산출 자산까지 동일하게 수용하도록 설계된 배경을 제공한다.
+ 
+-*그림 3. 선행 연구(paper02-04, Kim & Lee 2025[56]) — KIRI Engine 출력 단일 3DGS 에셋(Statue) 렌더.*
++![그림 3. 선행 연구(paper02-04, Kim 및 Lee [56]) — KIRI Engine 출력 단일 3DGS 에셋(Statue) 렌더](figures/kiri-statue-prior-paper02-04.png)
+ 
++*그림 3. 선행 연구(paper02-04, Kim 및 Lee [56]) — KIRI Engine 출력 단일 3DGS 에셋(Statue) 렌더.*
++
+ ![그림 4. 선행 연구(paper02-04) — 3DGS 자전거·더미 + 메시 의자 하이브리드 합성 씬](figures/kiri-with-mesh-prior-paper02-04.png)
+ 
+-*그림 4. 선행 연구(paper02-04, Kim & Lee 2025[56]) — KIRI Engine 출력 3DGS 자산(자전거·더미)과 폴리곤 메시(의자)의 하이브리드 합성 씬, 본 연구 HybridSceneObject 설계의 prior work demonstrator.*
++*그림 4. 선행 연구(paper02-04, Kim 및 Lee [56]) — KIRI Engine 출력 3DGS 자산(자전거·더미)과 폴리곤 메시(의자)의 하이브리드 합성 씬, 본 연구 HybridSceneObject 설계의 prior work demonstrator.*
+ 
+ ### 3.4. 의미론적 배치와 물리 검증
+ 
+@@ -316,7 +316,7 @@
+ 
+ ### 4.1. 구현 환경
+ 
+-<Table 2> *Implementation Environment*
++<Table 4> *Implementation Environment*
+ 
+ | 항목 | 사양 |
+ | --- | --- |
+@@ -356,7 +356,7 @@
+ | 25K | 32.12 | — | — |
+ | 30K | **32.21** | 592,046 | **73:26** |
+ 
+-표준 3DGS bonsai 30K 벤치마크 32.4 dB(Kerbl 2023)[1]와 0.19 dB 차이로, **Brush가 Apple Silicon에서 표준 3DGS 품질을 재현**함이 확증된다. PSNR은 25K→30K 구간에서 +0.09 dB로 plateau에 도달하여 30K iter 이상의 효용 한계가 드러난다. PSNR 측정은 ImageMagick `compare -metric PSNR`로 수행하였으며, 비교 시 GT를 rendered 해상도(1920×1279)에 맞춰 resize하였다. 본 측정은 Brush README가 비워둔 Apple Silicon 학습 시간 수치에 대한 첫 공개 가능 데이터로 기여한다.
++표준 3DGS bonsai 30K 벤치마크 32.4 dBKerbl [1]와 0.19 dB 차이로, **Brush가 Apple Silicon에서 표준 3DGS 품질을 재현**함이 확증된다. PSNR은 25K→30K 구간에서 +0.09 dB로 plateau에 도달하여 30K iter 이상의 효용 한계가 드러난다. PSNR 측정은 ImageMagick `compare -metric PSNR`로 수행하였으며, 비교 시 GT를 rendered 해상도(1920×1279)에 맞춰 resize하였다. 본 측정은 Brush README가 비워둔 Apple Silicon 학습 시간 수치에 대한 첫 공개 가능 데이터로 기여한다.
+ 
+ #### 4.2.2. macOS SfM 단계 단축 — hloc + LightGlue 적용
+ 
+@@ -392,7 +392,7 @@
+ 
+ 본 절은 §4.4·§4.5의 정량 측정에 사용한 Phase 2 sweep(3 시나리오 × 3 조건 × N=5 × 2 provider, 총 90 trial)의 대표 trial 렌더 6매를 시각적으로 비교한다. 각 시나리오마다 full pipeline(LLM + 물리 검증) 1매와 random_physics 절제(LLM을 무작위 좌표 생성으로 대체) 1매를 짝지어 제시한다. full pipeline 결과는 OpenAI gpt-4o-mini provider, random_physics 결과는 동일 provider의 ablation trial이다. 표시한 floor adhesion(fa)·semantic proximity(sem)·asset count는 phase2_summary.json의 per-trial 메타데이터에서 직접 읽은 값이다.
+ 
+-객체 가시성 주의: 시나리오마다 LLM이 선택한 객체 수가 다르다(평균 bedroom 5~7, office 7~8, living 5). 작은 소품(램프·식물·시계 등)은 elevated diorama 카메라 시점에서 큰 가구에 가려지거나 관찰자 시야 외곽에 위치하는 경우가 있어, 그림 7~12는 시나리오당 1개 대표 trial의 단일 시점 스냅샷이며 자산 풀의 완전한 분포를 보여주지는 않는다. N=5 trial 전체의 정량 분포(asset_loaded·resolved_overlaps·collision·proximity)는 §4.4 표 4a/4b에서 평균 ± 표준편차로 보고한다.
++객체 가시성 주의: 시나리오마다 LLM이 선택한 객체 수가 다르다(평균 bedroom 5~7, office 7~8, living 5). 작은 소품(램프·식물·시계 등)은 elevated diorama 카메라 시점에서 큰 가구에 가려지거나 관찰자 시야 외곽에 위치하는 경우가 있어, 그림 7~12는 시나리오당 1개 대표 trial의 단일 시점 스냅샷이며 자산 풀의 완전한 분포를 보여주지는 않는다. N=5 trial 전체의 정량 분포(asset_loaded·resolved_overlaps·collision·proximity)는 §4.4 표 7a/7b에서 평균 ± 표준편차로 보고한다.
+ 
+ 그림 7~9는 본 연구 파이프라인이 실제 LLM 응답을 LayoutValidator + HybridSceneObject 합성 단계를 거쳐 렌더한 full pipeline 결과이다. cozy_bedroom과 modern_office에서 floor adhesion 42.86%·sem≈0.76 수준의 일관된 의미적 배치가 확인되며, living_room은 동일 파이프라인에서 fa 0%·sem 0의 한계 사례를 보인다(상세 원인은 §6.2 living_room 한계 케이스 참조).
+ 
+@@ -458,7 +458,7 @@
+ 
+ 저작 시간과 배치 정확도 두 축으로 측정하였다. 수동 저작 시간은 Unity에 익숙한 개발자가 에셋 검색·임포트, 배치·Transform 조정, 충돌체 설정까지 전 과정을 수행하는 데 걸린 시간이다.
+ 
+-<Table 3> *Authoring Time*
++<Table 6> *Authoring Time*
+ 
+ | 시나리오 | 객체 수 | 수동 | SplatForge | 단축률 |
+ | --- | --- | --- | --- | --- |
+@@ -471,7 +471,7 @@
+ 
+ 배치 정확도는 세 지표로 보았다. Semantic Proximity Score는 의미적으로 연관된 객체 쌍(침대-협탁, 책상-의자)의 실제 거리가 가구 표준 규격 범위(침대-협탁 0.1-0.5m, 책상-의자 0.3-0.8m 등)에 드는 비율이다. Safety Zone Violation은 각 객체 바운딩 박스가 벽·다른 물체와 겹치는 부피(m³)의 합이다. Grounding Success Rate는 바닥에 정확히 안착된 객체의 비율이다.
+ 
+-<Table 4> *Placement Accuracy*
++<Table 7> *Placement Accuracy*
+ 
+ | 지표 | LLM 단독 | LLM + 물리 보정 | 변화 |
+ | --- | --- | --- | --- |
+@@ -483,9 +483,9 @@
+ 
+ #### 4.4.1. Phase 2 sweep — 90 trial 9-cell 종합
+ 
+-위 표 3·4의 초기 측정과 별도로, 2026-05-07 시점에 mock provider와 openai gpt-4o-mini provider를 동일 시나리오·동일 구현 위에서 N=5 반복으로 sweep하여 LLM 효과를 분리 측정하였다. 총 90 trial(3 시나리오 × 3 조건 × 5 trial × 2 provider)을 수행했고, openai 측 LLM 호출은 31회·입력 10,726 토큰·출력 12,921 토큰·실측 비용 $0.0094 USD였다(평균 latency 13.4 s/call). 표 4a는 9-cell × 2-provider의 wall-clock·정확도 종합을, 표 4b는 full 조건에 한정한 mock vs openai 직접 비교를 정리한다.
++위 표 6·7의 초기 측정과 별도로, 2026-05-07 시점에 mock provider와 openai gpt-4o-mini provider를 동일 시나리오·동일 구현 위에서 N=5 반복으로 sweep하여 LLM 효과를 분리 측정하였다. 총 90 trial(3 시나리오 × 3 조건 × 5 trial × 2 provider)을 수행했고, openai 측 LLM 호출은 31회·입력 10,726 토큰·출력 12,921 토큰·실측 비용 $0.0094 USD였다(평균 latency 13.4 s/call). 표 7a는 9-cell × 2-provider의 wall-clock·정확도 종합을, 표 7b는 full 조건에 한정한 mock vs openai 직접 비교를 정리한다.
+ 
+-<Table 4a> *Phase 2 측정 결과 — 9-cell 종합 (3 시나리오 × 3 조건 × N=5 × 2 provider, mean ± std). resolved_overlaps 컬럼은 §3.4 LayoutValidator iterative push-out이 해소한 부피 침투 누적 수.*
++<Table 7a> *Phase 2 측정 결과 — 9-cell 종합 (3 시나리오 × 3 조건 × N=5 × 2 provider, mean ± std). resolved_overlaps 컬럼은 §3.4 LayoutValidator iterative push-out이 해소한 부피 침투 누적 수.*
+ 
+ | 시나리오 | 조건 | provider | floor adhesion (%) | semantic proximity | 충돌 횟수 | resolved_overlaps | wall-clock (ms) |
+ |---------|------|---------|---------------------|---------------------|----------|-------------------|----------------|
+@@ -510,7 +510,7 @@
+ 
+ resolved_overlaps 수치는 latest sweep(2026-05-07, room T1·OverlapBox T2·camera T3 패치 적용) 6 cell에서 측정되었으며, 이전 sweep은 push-out 단계가 없었으므로 "n/a (구 sweep)"로 표기한다. llm_only 조건은 §3.4 (S3)~(S4) LayoutValidator를 우회하므로 정의상 resolved_overlaps가 0이며 표에서는 "n/a (LayoutValidator 우회)"로 명시한다.
+ 
+-<Table 4b> *LLM 효과 — full 조건 mock vs openai 직접 비교 (N=5, mean ± std)*
++<Table 7b> *LLM 효과 — full 조건 mock vs openai 직접 비교 (N=5, mean ± std)*
+ 
+ | 시나리오 | 지표 | mock | openai (gpt-4o-mini) | 향상폭 |
+ |---------|-----|------|--------------------|--------|
+@@ -524,15 +524,15 @@
+ | modern_office | 충돌 횟수 | 36.0 ± 0.0 | 26.0 ± 0.0 | **-27.8%** |
+ | living_room | 충돌 횟수 | 50.0 ± 0.0 | 20.0 ± 0.0 | **-60.0%** |
+ 
+-표 4a·4b의 핵심 결론은 세 가지이다. 첫째, **실 LLM(gpt-4o-mini) 도입으로 bedroom·office에서 Floor Adhesion 14.29% → 42.86%로 약 3.0~3.4배 향상**되었다. mock 응답은 키워드 매칭 기반 사전 정의 좌표라 평면 분포가 규약 수준에 머무는 반면, 실 LLM은 floor 접지 가능 영역에 후보 좌표를 더 밀집해 산출한다는 가설과 부합한다. 둘째, **충돌 횟수는 모든 시나리오에서 평균 약 28~60% 감소**(36~50건 → 20~30건)되어, 실 LLM의 공간 추론이 충돌 회피에 효과적임을 확인했다. 셋째, **wall-clock 오버헤드는 +4~12%**(30~103 ms/trial)로, LLM 1회 호출 평균 13.4 s가 비동기 파이프라인에서 흡수되어 trial 단위 실시간성이 유지된다. 단 living_room full 케이스는 floor adhesion 0%·semantic 0의 한계 사례를 보여 §6.2에서 별도로 다룬다.
++표 7a·7b의 핵심 결론은 세 가지이다. 첫째, **실 LLM(gpt-4o-mini) 도입으로 bedroom·office에서 Floor Adhesion 14.29% → 42.86%로 약 3.0~3.4배 향상**되었다. mock 응답은 키워드 매칭 기반 사전 정의 좌표라 평면 분포가 규약 수준에 머무는 반면, 실 LLM은 floor 접지 가능 영역에 후보 좌표를 더 밀집해 산출한다는 가설과 부합한다. 둘째, **충돌 횟수는 모든 시나리오에서 평균 약 28~60% 감소**(36~50건 → 20~30건)되어, 실 LLM의 공간 추론이 충돌 회피에 효과적임을 확인했다. 셋째, **wall-clock 오버헤드는 +4~12%**(30~103 ms/trial)로, LLM 1회 호출 평균 13.4 s가 비동기 파이프라인에서 흡수되어 trial 단위 실시간성이 유지된다. 단 living_room full 케이스는 floor adhesion 0%·semantic 0의 한계 사례를 보여 §6.2에서 별도로 다룬다.
+ 
+ 한편 본 연구의 macOS 단일 기기 재구성 파이프라인 wall-clock·PSNR 측정은 §4.2.1 표 5a(Brush 학습)·§4.2.2 표 5b(SfM head-to-head)에 분리 정리되어 있으며, 표 5b의 hloc 단축 경로(SfM 51:06 + 학습 73:26 = 약 2시간 5분, PSNR 31.84 dB)가 표준 3DGS 품질을 ±0.5 dB 허용 범위 안에서 보존하면서 1.44× wall-clock 절감을 달성함을 별도 좌표로 명시하였다.
+ 
+ ### 4.5. 절제 실험
+ 
+-파이프라인의 각 구성요소가 결과에 어떤 영향을 미치는지 분리하기 위해 Phase 2 sweep에서 동일 시나리오·동일 N=5 반복 위에 세 가지 조건을 비교하였다. **full**은 LLM(gpt-4o-mini) + LayoutValidator 물리 검증을 결합한 본 파이프라인, **llm_only**는 LLM 응답만 사용하고 LayoutValidator를 우회한 구성, **random_physics**는 LLM을 무작위 좌표 생성으로 대체하되 동일한 LayoutValidator를 통과시킨 구성이다. 표 6은 openai provider 측 3 시나리오 × 3 조건의 측정치를 정리한다.
++파이프라인의 각 구성요소가 결과에 어떤 영향을 미치는지 분리하기 위해 Phase 2 sweep에서 동일 시나리오·동일 N=5 반복 위에 세 가지 조건을 비교하였다. **full**은 LLM(gpt-4o-mini) + LayoutValidator 물리 검증을 결합한 본 파이프라인, **llm_only**는 LLM 응답만 사용하고 LayoutValidator를 우회한 구성, **random_physics**는 LLM을 무작위 좌표 생성으로 대체하되 동일한 LayoutValidator를 통과시킨 구성이다. 표 8은 openai provider 측 3 시나리오 × 3 조건의 측정치를 정리한다.
+ 
+-<Table 6> *Ablation — full / llm_only / random_physics 3 조건 비교 (openai gpt-4o-mini, N=5, mean ± std). 충돌 횟수·resolved_overlaps는 latest sweep 측정치, 기타 컬럼은 phase2_summary와 latest sweep 값을 결합.*
++<Table 8> *Ablation — full / llm_only / random_physics 3 조건 비교 (openai gpt-4o-mini, N=5, mean ± std). 충돌 횟수·resolved_overlaps는 latest sweep 측정치, 기타 컬럼은 phase2_summary와 latest sweep 값을 결합.*
+ 
+ | 시나리오 | 조건 | floor adhesion (%) | semantic proximity | 충돌 횟수 | resolved_overlaps |
+ |---------|------|---------------------|---------------------|----------|-------------------|
+@@ -558,13 +558,13 @@
+ 
+ #### 5.1.1. 본 파이프라인의 오프라인 특성
+ 
+-본 연구의 재구성 경로는 COLMAP 기반 sparse reconstruction과 30K iteration의 gradient optimization을 조합한 **오프라인 baseline**에 해당한다. 2026-04-23 PoC 측정(302장, 1280×960 입력, macOS M-계열, Brush Rust+wgpu 학습)을 기준으로 feature 추출 약 2분, exhaustive matcher 2~6시간, mapper 1~3시간, 학습 2~4시간이 소요되어 **총 5~13시간 범위**의 처리 시간을 갖는다. 이는 Kerbl et al.(2023)이 제시한 원 3DGS 학습 프로토콜을 충실히 따를 때 나타나는 전형적 특성이다.
++본 연구의 재구성 경로는 COLMAP 기반 sparse reconstruction과 30K iteration의 gradient optimization을 조합한 **오프라인 baseline**에 해당한다. 2026-04-23 PoC 측정(302장, 1280×960 입력, macOS M-계열, Brush Rust+wgpu 학습)을 기준으로 feature 추출 약 2분, exhaustive matcher 2~6시간, mapper 1~3시간, 학습 2~4시간이 소요되어 **총 5~13시간 범위**의 처리 시간을 갖는다. 이는 Kerbl 외 [1]이 제시한 원 3DGS 학습 프로토콜을 충실히 따를 때 나타나는 전형적 특성이다.
+ 
+ 302장 입력의 exhaustive pairing은 $\binom{302}{2} = 45{,}451$ 페어에 달하며, 블록당 97초의 실측치를 기반으로 한 이론 하한만도 79분에 이른다. 본 연구에서 사용한 COLMAP 4.0.3 homebrew 빌드는 `Commit Unknown on Unknown without CUDA`로 SIFT 추출과 matching 전 구간을 CPU에서 실행하므로, 맥북 M-계열의 Metal GPU와 ANE는 재구성 단계에서 유휴 상태로 남는다.
+ 
+ #### 5.1.2. Feed-forward 계열의 시간 단축
+ 
+-2024년 이후의 **feed-forward 계열**은 해당 시간 축을 수초~수분 단위로 단축한다. DUSt3R(Wang et al., 2024)[41]는 feature matching 단계를 생략하고 이미지 쌍에서 dense point cloud를 직접 회귀하며, MASt3R(Leroy et al., 2024)[42]는 correspondence 품질을 개선한 후속 모델이다. InstantSplat(Fan et al., 2024)[43]은 DUSt3R 초기화를 바탕으로 저 iter 학습을 결합하여 수 분 내 3DGS 산출을 보고한다. hloc(Sarlin et al., 2019)[53]은 SuperPoint[55]·SuperGlue 계열의 learned feature와 vocabulary tree retrieval을 결합하여 exhaustive matching의 $O(N^2)$ 비용을 $O(N \log N)$ 수준으로 완화한다.
++2024년 이후의 **feed-forward 계열**은 해당 시간 축을 수초~수분 단위로 단축한다. DUSt3R[41]는 feature matching 단계를 생략하고 이미지 쌍에서 dense point cloud를 직접 회귀하며, MASt3R[42]는 correspondence 품질을 개선한 후속 모델이다. InstantSplat[43]은 DUSt3R 초기화를 바탕으로 저 iter 학습을 결합하여 수 분 내 3DGS 산출을 보고한다. hloc[53]은 SuperPoint[55]·SuperGlue 계열의 learned feature와 vocabulary tree retrieval을 결합하여 exhaustive matching의 $O(N^2)$ 비용을 $O(N \log N)$ 수준으로 완화한다.
+ 
+ 상용 제품군에서는 KIRI Engine이 50~150장 입력 기준 10~15분 내외의 end-to-end 처리를 공개 제품 지표로 제시하며, 본 연구 baseline 대비 약 20~50배의 단축이 관찰된다. 다만 KIRI Engine의 내부 알고리즘·하드웨어는 공개되지 않아, 해당 수치의 해석에는 가설적 요소가 포함된다.
+ 
+@@ -586,9 +586,9 @@
+ 
+ §2.5에서 정리한 월드 모델 계열(Lyra/HY-World/Marble/Genie 3/Cosmos)은 Kong et al.[20]의 4축 중 **3D-scene-based**(Lyra·HY-World·Marble)와 **Interactive/Playable**(Genie 3), **Foundation-for-Physical-AI**(Cosmos) 세 축에서 본 연구와 인접한다. 본 절은 그 인접 관계를 결과 맥락에서 재해석하여 본 연구의 좌표를 명확히 한다.
+ 
+-본 연구는 이 흐름 안에서 **"의미론적 배치 기반 조립"**이라는 별개의 좌표를 차지한다. 월드 모델 대부분이 **씬 전체를 통째로 생성**하는 E2E 접근을 채택하는 반면, 본 연구는 기존·생성형 3DGS 에셋을 LLM의 배치 규칙으로 **의미론적으로 조합**하고 Unity 물리엔진으로 검증한다. 표 8은 주요 축에서의 대비를 정리한다.
++본 연구는 이 흐름 안에서 **"의미론적 배치 기반 조립"**이라는 별개의 좌표를 차지한다. 월드 모델 대부분이 **씬 전체를 통째로 생성**하는 E2E 접근을 채택하는 반면, 본 연구는 기존·생성형 3DGS 에셋을 LLM의 배치 규칙으로 **의미론적으로 조합**하고 Unity 물리엔진으로 검증한다. 표 9은 주요 축에서의 대비를 정리한다.
+ 
+-<Table 8> *World-Model vs Unity-SplatForge 대비*
++<Table 9> *World-Model vs Unity-SplatForge 대비*
+ 
+ | 대비 축 | 월드 모델 (Lyra/Marble/Genie 3) | Unity-SplatForge (본 연구) |
+ |--------|-------------------------------|--------------------------|
+@@ -618,7 +618,7 @@
+ 
+ #### 5.3.3. 3DGS 네이티브 물리 연구 대비의 위치 선정
+ 
+-둘째 논점은 **3DGS 네이티브 물리 연구 대비의 위치 선정**이다. PhysGaussian(Xie et al., 2024)[16]은 3DGS를 물질점법(MPM)과 결합하여 splat 자체가 변형·충돌하는 파이프라인을 제안하였다. PhysSplat(Zhao et al., 2025)[35]은 이 방향을 확장한다.
++둘째 논점은 **3DGS 네이티브 물리 연구 대비의 위치 선정**이다. PhysGaussian[16]은 3DGS를 물질점법(MPM)과 결합하여 splat 자체가 변형·충돌하는 파이프라인을 제안하였다. PhysSplat[35]은 이 방향을 확장한다.
+ 
+ 이들은 3DGS 표현에서 직접 물리량을 풀어내는 **네이티브 경로**를 추구하며, 학술적으로는 표현의 일관성과 장기적 확장성 면에서 우위를 갖는다. 그러나 이 경로는 상용 게임 엔진의 네이티브 물리와 직접 호환되지 않으며, 대규모 씬에서의 실시간 성능은 여전히 연구 단계에 있다. 본 연구는 Unity 물리 엔진의 성숙한 런타임 성능과 디자이너 워크플로를 활용하는 **프록시 경로**를 선택하여, 실용적 배포 가능성을 우선한다. 표현 일관성은 PhysSplat·GASP 계열에 양보하되, 생태계 통합과 즉시 활용성을 본 연구의 contribution으로 명시한다.
+ 
+@@ -646,21 +646,21 @@
+ 
+ LLM의 공간 추론은 직사각형 방에서는 무난했으나, L자형 방이나 로프트 같은 복잡한 기하에서는 가구가 꺾인 벽 뒤쪽에 놓이는 등 오류가 관찰되었다. 텍스트 프롬프트만으로는 결과를 보고 고치는 반복 수정이 어렵다는 점도 걸린다. 씬을 렌더링한 스크린샷을 VLM에 넘겨 "책상이 벽에 너무 붙었다"는 피드백을 받아 재배치하는 루프를 붙이면 이 문제가 줄어들 것으로 예상한다.
+ 
+-본 측정에서 living_room 시나리오의 full pipeline 모드는 Floor Adhesion 0%, Semantic Proximity 0의 실패 사례를 보였다(표 4a·6, 그림 9). 이는 다음 세 요인의 복합 작용으로 추정된다. 첫째, 본 실험에서 사용한 자산 카탈로그(Polyhaven CC0 + Kenney CC0 mesh)가 living_room 의미 페어(예: TV-소파 거리, 러그-가구 정렬)를 정의한 canonical 휴리스틱과 정합하지 않은 점. 둘째, FBX 피벗이 객체 중심에 위치하여 ground-snap 시 객체 절반이 바닥 아래로 들어간 점. 셋째, bedroom·office 대비 더 많은 자산(8개)이 좁은 공간에 배치되어 충돌 처리 우선이 의미 페어 검출을 압도한 점이다. 후속 작업에서 (1) 자산별 피벗 자동 보정, (2) 시나리오별 canonical pair 휴리스틱 일반화, (3) 좁은 공간에서의 우선순위 정책 개선(충돌 기각 시 의미 페어 점수 가중치 회귀)을 통해 해소할 예정이다.
++본 측정에서 living_room 시나리오의 full pipeline 모드는 Floor Adhesion 0%, Semantic Proximity 0의 실패 사례를 보였다(표 7a·8, 그림 9). 이는 다음 세 요인의 복합 작용으로 추정된다. 첫째, 본 실험에서 사용한 자산 카탈로그(Polyhaven CC0 + Kenney CC0 mesh)가 living_room 의미 페어(예: TV-소파 거리, 러그-가구 정렬)를 정의한 canonical 휴리스틱과 정합하지 않은 점. 둘째, FBX 피벗이 객체 중심에 위치하여 ground-snap 시 객체 절반이 바닥 아래로 들어간 점. 셋째, bedroom·office 대비 더 많은 자산(8개)이 좁은 공간에 배치되어 충돌 처리 우선이 의미 페어 검출을 압도한 점이다. 후속 작업에서 (1) 자산별 피벗 자동 보정, (2) 시나리오별 canonical pair 휴리스틱 일반화, (3) 좁은 공간에서의 우선순위 정책 개선(충돌 기각 시 의미 페어 점수 가중치 회귀)을 통해 해소할 예정이다.
+ 
+-3DGS 객체의 정적 특성도 제약이다. 질량이나 마찰 같은 물리적 속성을 3DGS에 직접 부여하는 것은 현재 불가능하고, 프록시 충돌체를 통한 간접적 상호작용만 된다. PhysGaussian(Xie et al., 2024)[16]처럼 가우시안에 연속체 역학을 입히거나 PhysSplat(Zhao et al., 2025)[35]처럼 MLLM으로 물성 파라미터를 추정하는 연구, 나아가 GASP(Borycki et al., 2025)[52]처럼 가우시안 파라미터화 자체를 물리 엔진에 직접 연결하는 시도가 성숙하면 상황이 달라질 수 있다. 특히 GASP 계열은 Raycast 프록시 충돌체를 우회해 3DGS 네이티브 물리를 지향한다는 점에서, 본 연구의 하이브리드 접근이 가진 간접성의 근본적 해소 방향을 제시한다.
++3DGS 객체의 정적 특성도 제약이다. 질량이나 마찰 같은 물리적 속성을 3DGS에 직접 부여하는 것은 현재 불가능하고, 프록시 충돌체를 통한 간접적 상호작용만 된다. PhysGaussian[16]처럼 가우시안에 연속체 역학을 입히거나 PhysSplat[35]처럼 MLLM으로 물성 파라미터를 추정하는 연구, 나아가 GASP[52]처럼 가우시안 파라미터화 자체를 물리 엔진에 직접 연결하는 시도가 성숙하면 상황이 달라질 수 있다. 특히 GASP 계열은 Raycast 프록시 충돌체를 우회해 3DGS 네이티브 물리를 지향한다는 점에서, 본 연구의 하이브리드 접근이 가진 간접성의 근본적 해소 방향을 제시한다.
+ 
+ 본 측정 자동화 파이프라인이 HDRP CustomPassVolume + GaussianSplatHDRPPass 경로를 batchmode 환경에서 종결시키지 못한 통합 한계도 별도로 기록한다. Unity 6000.3.6f1 + UnityGaussianSplatting 1.1.1 + HDRP 17.x 조합에서 `GS_ENABLE_HDRP` scripting define 활성화, GaussianSplatRenderer 셰이더·ComputeShader 인스펙터 기본값 코드 바인딩, GaussianSplatHDRPPass 등록(internal 클래스를 `Type.GetType` 으로 동적 로드), `EnsureSorterAndRegister()` 강제 호출까지 모든 사전 조건을 충족시킨 상태에서도 단일 `Camera.Render()` 호출로 캡처한 결과가 cleared 색상 버퍼(전 픽셀 (0,0,0))로 반환되었다. 동일 파이프라인은 mesh 자산만 포함했을 때는 정상 PBR 렌더링을 산출하므로, 본 한계는 batchmode 단일 프레임 렌더 경로가 HDRP custom pass 의 RT 합성을 종결하지 못하는 데서 비롯된 것으로 분석된다(GameView 다중 프레임 렌더 루프에서는 동일 코드가 정상 동작함을 §3.3 인용 사례가 시사한다). 후속 작업에서는 (1) manual GameView 캡처(LaunchAgent 기반 비-batchmode 자동화), (2) URP 경로(GaussianSplatURPFeature)로의 이행, (3) batchmode `EditorApplication.Step()` 다중 프레임 priming 의 세 갈래로 해소를 시도할 예정이다.
+ 
+ **HDRP·URP 양 경로 검증 (2026-05).** 본 한계의 일반성을 평가하기 위해 두 가지 보완 경로를 평행 검증하였다. (a) **선행 연구[56] unity-lab 동일 환경(Unity 6000.3.13f1, HDRP 17.3.0)** 으로 재현한 batchmode + GS PlayMode 캡처 — 결과는 cleared 색상 버퍼(1 distinct color, 분산 0). 이는 본 한계가 특정 Unity 패치 버전(6000.3.6f1)에 국한되지 않고 **HDRP batchmode + GaussianSplatRenderer 구조의 일반적 비호환**임을 확정한다. (b) **URP 17.3.0 (`GS_ENABLE_URP` define)** 으로 분기한 PoC — PlayMode batchmode 에서 GS 단독은 정상 렌더링(228KB PNG, 300+ distinct colors)되어 batchmode + GS 자체가 불가능한 것이 아님을 시사하나, 같은 씬에 mesh 자산이 공존할 때 GaussianSplatURPFeature 의 `Blitter.BlitCameraTexture` composite blit 이 URP 17.3 RenderGraph 의 active color/depth 텍스처와 상호작용하여 mesh 영역을 검정으로 덮어쓰는 별개 통합 한계가 관찰되었다. 즉 본 연구의 자동화 sweep 에 3DGS 시각화를 포함하기 위해서는 (1) HDRP batchmode 의 GS 합성 종결 패치 또는 (2) URP RenderGraph 호환 composite shader 재작성 중 하나가 선행되어야 하며, 두 작업 모두 plugin upstream(aras-p UnityGaussianSplatting) 영역의 구조적 변경이 필요해 본 페이퍼 범위를 초과한다. 본 한계와 우회 시도의 상세 결과는 후속 자료로 보관한다.
+ 
+-확장성 문제도 있다. 현재 파이프라인은 방 하나 단위에 맞춰져 있다. 건물이나 도시 규모로 가려면 3DGS 에셋의 LOD 관리, 스트리밍 로딩, 절두체 기반 선택적 렌더링이 필수적이고, LLM의 추론 범위 역시 복수 방 이상으로 넓혀야 한다. LS-Gaussian(Wei et al., 2025) 같은 경량 스트리밍 프레임워크와의 통합이 이 방향의 출발점이 될 수 있다.
++확장성 문제도 있다. 현재 파이프라인은 방 하나 단위에 맞춰져 있다. 건물이나 도시 규모로 가려면 3DGS 에셋의 LOD 관리, 스트리밍 로딩, 절두체 기반 선택적 렌더링이 필수적이고, LLM의 추론 범위 역시 복수 방 이상으로 넓혀야 한다. LS-Gaussian[17] 같은 경량 스트리밍 프레임워크와의 통합이 이 방향의 출발점이 될 수 있다.
+ 
+ 넷째 한계로 3DGS 학습은 여전히 CUDA 기반 NVIDIA GPU를 요구하는 반면 Unity 렌더링은 Metal이나 Vulkan으로 돌아간다. 우리 초기 실험 환경(Apple M1 Max)에서는 렌더링은 되지만 에셋 생성은 외부 CUDA 서버에 의존해야 했다. 클라우드 GPU를 REST API로 호출하는 구조가 현실적 해법인데, 이 부분의 파이프라인 통합은 아직 구현하지 못했다. 다만 §2.4.5에서 논한 Brush 기반 macOS 네이티브 학습 경로가 2026-04 PoC로 확보되었으며, 후속 연구에서는 본 한계 자체가 해소될 가능성이 크다. 본 연구의 Brush 벤치마크 부재 보강은 별도 한계로도 의미를 갖는다 — **Brush README는 Apple Silicon 수치를 비워두었으나, 본 연구의 Mip-NeRF360 bonsai 측정(30K iter 73분 26초, PSNR 32.21 dB; §4.2.1 Table 5a)이 첫 공개 가능 데이터로 기여한다**.
+ 
+ **L4 COLMAP no-CUDA 단계 단축 가능성 확인됨**: macOS homebrew COLMAP 빌드는 CPU 전용이라 feature matching이 bottleneck이다. 본 연구의 측정(bonsai 292 photos)에서 SfM 전체 1시간 46분 중 exhaustive_matcher가 1시간 28분(83.6%)을 차지하여 30K Brush 학습 1시간 13분을 상회했다. 이를 hloc[53] + LightGlue[54] + sequential pairs로 교체한 결과 SfM이 51분 6초로 단축(2.07×)되어 학습 시간 미만으로 회귀했으며, PSNR은 32.21 dB → 31.84 dB로 0.37 dB 감소(±0.5 dB 허용 범위)하였다(§4.2.2 표 5b 참조). 이로써 macOS 단일 파이프라인의 속도 병목이 학습이 아닌 SfM 전처리였음을 확인하고, 학습 우위 비율(SfM 41% : Brush 59%)로 정상화 가능함을 입증하였다. MASt3R-SfM 등 추가 단축형 대안은 별도 후속 연구로 남는다.
+ 
+-<Table 7> *COLMAP no-CUDA SfM 단계별 측정 (bonsai 292 photos, Apple Silicon)*
++<Table 10> *COLMAP no-CUDA SfM 단계별 측정 (bonsai 292 photos, Apple Silicon)*
+ 
+ | 단계 | 시간 | 점유율 |
+ |------|------|-------|
+@@ -669,7 +669,7 @@
+ | mapper | 12:28 | 11.8% |
+ | **총 SfM** | **106:04** | 100% |
+ 
+-추가 대안 경로는 세 갈래로 구분된다. 첫째, 본 연구가 §4.2.2에서 실측한 **hloc**[53] 기반의 learned feature + retrieval로 $O(N^2)$ exhaustive pairing 비용을 완화하는 접근이다. 둘째, **DUSt3R**(Wang et al., 2024)[41]와 **MASt3R**(Leroy et al., 2024)[42]의 matching-free dense regression으로 sparse reconstruction 자체를 우회하는 접근이다. 셋째, **InstantSplat**(Fan et al., 2024)[43]과 같이 DUSt3R 초기화와 저 iter 학습을 결합하여 전 구간을 feed-forward 축으로 이동시키는 접근이다.
++추가 대안 경로는 세 갈래로 구분된다. 첫째, 본 연구가 §4.2.2에서 실측한 **hloc**[53] 기반의 learned feature + retrieval로 $O(N^2)$ exhaustive pairing 비용을 완화하는 접근이다. 둘째, **DUSt3R**[41]와 **MASt3R**[42]의 matching-free dense regression으로 sparse reconstruction 자체를 우회하는 접근이다. 셋째, **InstantSplat**[43]과 같이 DUSt3R 초기화와 저 iter 학습을 결합하여 전 구간을 feed-forward 축으로 이동시키는 접근이다.
+ 
+ 다만 이들 대안은 baseline 대비 PSNR 3~6dB 열위, macOS Metal/MPS 실행 가능성 불확실(상류 대부분 CUDA 전제), 라이선스·유지 상태의 제약을 수반한다. 현 시점의 본 연구의 차별점은 해당 bottleneck을 은폐하지 않고 **baseline 축의 정직한 좌표**로 기록하여 feed-forward 축과의 비교 기준점을 제공한 데에 있으며, 동시에 hloc 적용으로 macOS 단일 파이프라인의 속도 정상화를 실측 입증한 데에 있다.
+ 
